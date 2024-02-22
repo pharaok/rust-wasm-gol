@@ -17,6 +17,8 @@ pub fn Canvas() -> impl IntoView {
     let inner_height = window().inner_height().unwrap().as_f64().unwrap();
 
     let (grid, set_grid) = create_signal(HashMap::<(i32, i32), u8>::new());
+    let (origin, set_origin) = create_signal((1.0, 1.0));
+    let pinned = store_value::<Option<(f64, f64)>>(None);
 
     create_effect(move |_| {
         canvas_ref().unwrap().set_width(inner_width as u32);
@@ -36,6 +38,8 @@ pub fn Canvas() -> impl IntoView {
 
     create_effect(move |_| {
         let ctx = context().unwrap();
+        let (o_x, o_y) = origin();
+
         ctx.set_fill_style(&JsValue::from_str("black"));
         ctx.fill_rect(0.0, 0.0, inner_width, inner_height);
 
@@ -43,8 +47,8 @@ pub fn Canvas() -> impl IntoView {
         for ((x, y), v) in grid() {
             if v == 1 {
                 ctx.fill_rect(
-                    x as f64 * CELL_SIZE,
-                    y as f64 * CELL_SIZE,
+                    (x as f64 - o_x) * CELL_SIZE,
+                    (y as f64 - o_y) * CELL_SIZE,
                     CELL_SIZE,
                     CELL_SIZE,
                 );
@@ -56,14 +60,37 @@ pub fn Canvas() -> impl IntoView {
         <canvas
             _ref=canvas_ref
             on:pointerdown=move |ev| {
-                let grid_x = ev.offset_x() as f64 / CELL_SIZE;
-                let grid_y = ev.offset_y() as f64 / CELL_SIZE;
-                let c = (grid_x as i32, grid_y as i32);
-                let cell = grid().get(&c).unwrap_or(&0).clone();
-                set_grid
-                    .update(|grid| {
-                        grid.insert(c, if cell == 0 { 1 } else { 0 });
-                    });
+                let (o_x, o_y) = origin();
+                let grid_x = ev.offset_x() as f64 / CELL_SIZE + o_x;
+                let grid_y = ev.offset_y() as f64 / CELL_SIZE + o_y;
+                match ev.button() {
+                    0 => {
+                        let c = (grid_x.floor() as i32, grid_y.floor() as i32);
+                        let cell = grid().get(&c).unwrap_or(&0).clone();
+                        set_grid
+                            .update(|grid| {
+                                grid.insert(c, if cell == 0 { 1 } else { 0 });
+                            });
+                    }
+                    1 => {
+                        pinned.set_value(Some((grid_x, grid_y)));
+                        ev.prevent_default();
+                    }
+                    _ => panic!(),
+                }
+            }
+
+            on:pointermove=move |ev| {
+                if let Some((p_x, p_y)) = pinned() {
+                    let (o_x, o_y) = origin();
+                    let grid_x = ev.offset_x() as f64 / CELL_SIZE + o_x;
+                    let grid_y = ev.offset_y() as f64 / CELL_SIZE + o_y;
+                    set_origin((o_x - grid_x + p_x, o_y - grid_y + p_y));
+                }
+            }
+
+            on:pointerup=move |_| {
+                pinned.set_value(None);
             }
         >
         </canvas>
