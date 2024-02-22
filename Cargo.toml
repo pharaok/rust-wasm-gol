@@ -6,3 +6,6 @@ edition = "2021"
 [dependencies]
 console_error_panic_hook = "0.1.7"
 leptos = { version = "0.6.6", features = ["csr", "nightly"] }
+
+[dependencies.web-sys]
+features = ["CanvasRenderingContext2d"]
