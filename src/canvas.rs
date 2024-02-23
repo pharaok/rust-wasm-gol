@@ -6,6 +6,40 @@ use web_sys::{
     CanvasRenderingContext2d,
 };
 
+type Grid = HashMap<(i32, i32), u8>;
+
+pub fn neighbor_count(grid: &Grid, x: i32, y: i32) -> i32 {
+    let mut count = 0;
+    for nx in (x - 1)..=(x + 1) {
+        for ny in (y - 1)..=(y + 1) {
+            if !(nx == x && ny == y) && grid.get(&(nx, ny)).is_some_and(|v| *v == 1) {
+                count += 1;
+            }
+        }
+    }
+    count
+}
+
+pub fn tick(grid: &Grid) -> Grid {
+    let mut new_grid = Grid::new();
+
+    for ((cx, cy), _) in grid {
+        for x in (cx - 1)..=(cx + 1) {
+            for y in (cy - 1)..=(cy + 1) {
+                if !new_grid.contains_key(&(x, y)) {
+                    match neighbor_count(grid, x, y) {
+                        2 => new_grid.insert((x, y), *grid.get(&(x, y)).unwrap_or(&0)),
+                        3 => new_grid.insert((x, y), 1),
+                        _ => None,
+                    };
+                }
+            }
+        }
+    }
+
+    new_grid
+}
+
 #[component]
 pub fn Canvas() -> impl IntoView {
     let canvas_ref = create_node_ref::<html::Canvas>();
@@ -14,7 +48,7 @@ pub fn Canvas() -> impl IntoView {
     let inner_width = window().inner_width().unwrap().as_f64().unwrap();
     let inner_height = window().inner_height().unwrap().as_f64().unwrap();
 
-    let (grid, set_grid) = create_signal(HashMap::<(i32, i32), u8>::new());
+    let (grid, set_grid) = create_signal(Grid::new());
     let (origin, set_origin) = create_signal((1.0, 1.0));
     let (cell_size, set_cell_size) = create_signal(32.0);
     let pinned = store_value::<Option<(f64, f64)>>(None);
@@ -58,6 +92,7 @@ pub fn Canvas() -> impl IntoView {
     view! {
         <canvas
             _ref=canvas_ref
+            tabindex=0
             on:pointerdown=move |ev| {
                 let (o_x, o_y) = origin();
                 let grid_x = ev.offset_x() as f64 / cell_size() + o_x;
@@ -106,6 +141,13 @@ pub fn Canvas() -> impl IntoView {
                         *origin = (o_x - delta_x, o_y - delta_y);
                     });
                 set_cell_size.update(|cs| *cs *= factor);
+            }
+
+            on:keydown=move |_| {
+                set_grid
+                    .update(|grid| {
+                        *grid = tick(&grid);
+                    });
             }
         >
         </canvas>
