@@ -6,8 +6,6 @@ use web_sys::{
     CanvasRenderingContext2d,
 };
 
-const CELL_SIZE: f64 = 32.0;
-
 #[component]
 pub fn Canvas() -> impl IntoView {
     let canvas_ref = create_node_ref::<html::Canvas>();
@@ -18,6 +16,7 @@ pub fn Canvas() -> impl IntoView {
 
     let (grid, set_grid) = create_signal(HashMap::<(i32, i32), u8>::new());
     let (origin, set_origin) = create_signal((1.0, 1.0));
+    let (cell_size, set_cell_size) = create_signal(32.0);
     let pinned = store_value::<Option<(f64, f64)>>(None);
 
     create_effect(move |_| {
@@ -47,10 +46,10 @@ pub fn Canvas() -> impl IntoView {
         for ((x, y), v) in grid() {
             if v == 1 {
                 ctx.fill_rect(
-                    (x as f64 - o_x) * CELL_SIZE,
-                    (y as f64 - o_y) * CELL_SIZE,
-                    CELL_SIZE,
-                    CELL_SIZE,
+                    (x as f64 - o_x) * cell_size(),
+                    (y as f64 - o_y) * cell_size(),
+                    cell_size(),
+                    cell_size(),
                 );
             }
         }
@@ -61,8 +60,8 @@ pub fn Canvas() -> impl IntoView {
             _ref=canvas_ref
             on:pointerdown=move |ev| {
                 let (o_x, o_y) = origin();
-                let grid_x = ev.offset_x() as f64 / CELL_SIZE + o_x;
-                let grid_y = ev.offset_y() as f64 / CELL_SIZE + o_y;
+                let grid_x = ev.offset_x() as f64 / cell_size() + o_x;
+                let grid_y = ev.offset_y() as f64 / cell_size() + o_y;
                 match ev.button() {
                     0 => {
                         let c = (grid_x.floor() as i32, grid_y.floor() as i32);
@@ -83,14 +82,30 @@ pub fn Canvas() -> impl IntoView {
             on:pointermove=move |ev| {
                 if let Some((p_x, p_y)) = pinned() {
                     let (o_x, o_y) = origin();
-                    let grid_x = ev.offset_x() as f64 / CELL_SIZE + o_x;
-                    let grid_y = ev.offset_y() as f64 / CELL_SIZE + o_y;
-                    set_origin((o_x - grid_x + p_x, o_y - grid_y + p_y));
+                    let grid_x = ev.offset_x() as f64 / cell_size() + o_x;
+                    let grid_y = ev.offset_y() as f64 / cell_size() + o_y;
+                    let delta_x = grid_x - p_x;
+                    let delta_y = grid_y - p_y;
+                    set_origin((o_x - delta_x, o_y - delta_y));
                 }
             }
 
             on:pointerup=move |_| {
                 pinned.set_value(None);
+            }
+
+            on:wheel=move |ev| {
+                let factor = 1.0 + -(ev.delta_y() / 2000.0);
+                set_origin
+                    .update(|origin| {
+                        let (o_x, o_y) = origin.clone();
+                        let grid_x = ev.offset_x() as f64 / cell_size();
+                        let grid_y = ev.offset_y() as f64 / cell_size();
+                        let delta_x = grid_x / factor - grid_x;
+                        let delta_y = grid_y / factor - grid_y;
+                        *origin = (o_x - delta_x, o_y - delta_y);
+                    });
+                set_cell_size.update(|cs| *cs *= factor);
             }
         >
         </canvas>
