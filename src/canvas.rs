@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use leptos::{leptos_dom::logging::console_log, *};
+use leptos_use::{use_raf_fn, utils::Pausable};
 use web_sys::{
     wasm_bindgen::{JsCast, JsValue},
     CanvasRenderingContext2d,
@@ -50,8 +51,51 @@ pub fn Canvas() -> impl IntoView {
 
     let (grid, set_grid) = create_signal(Grid::new());
     let (origin, set_origin) = create_signal((1.0, 1.0));
-    let (cell_size, set_cell_size) = create_signal(32.0);
+    let (cell_size, set_cell_size) = create_signal::<f64>(32.0);
     let pinned = store_value::<Option<(f64, f64)>>(None);
+
+    let (is_ticking, set_is_ticking) = create_signal(false);
+    let last_update = store_value(0.0);
+    let tps = store_value(30.0);
+
+    let Pausable {
+        pause,
+        resume,
+        is_active,
+    } = use_raf_fn(move |raf_args| {
+        let ticks = if last_update() == 0.0 {
+            1
+        } else {
+            ((raf_args.timestamp - last_update()) / (1000.0 / tps())) as i32
+        };
+        if is_ticking.get_untracked() && ticks > 0 {
+            set_grid.update(|grid| {
+                for _ in 0..ticks {
+                    *grid = tick(&grid);
+                }
+            });
+            last_update.set_value(raf_args.timestamp);
+        }
+
+        let ctx = context().unwrap();
+        let (o_x, o_y) = origin.get_untracked();
+        let cell_size = cell_size.get_untracked();
+
+        ctx.set_fill_style(&JsValue::from_str("black"));
+        ctx.fill_rect(0.0, 0.0, inner_width, inner_height);
+
+        ctx.set_fill_style(&JsValue::from_str("white"));
+        for ((x, y), v) in grid.get_untracked() {
+            if v == 1 {
+                ctx.fill_rect(
+                    ((x as f64 - o_x) * cell_size).floor(),
+                    ((y as f64 - o_y) * cell_size).floor(),
+                    cell_size.ceil(),
+                    cell_size.ceil(),
+                );
+            }
+        }
+    });
 
     create_effect(move |_| {
         canvas_ref().unwrap().set_width(inner_width as u32);
@@ -65,28 +109,12 @@ pub fn Canvas() -> impl IntoView {
                 .dyn_into::<CanvasRenderingContext2d>()
                 .unwrap(),
         ));
-
-        context().unwrap()
-    });
-
-    create_effect(move |_| {
-        let ctx = context().unwrap();
-        let (o_x, o_y) = origin();
-
-        ctx.set_fill_style(&JsValue::from_str("black"));
-        ctx.fill_rect(0.0, 0.0, inner_width, inner_height);
-
-        ctx.set_fill_style(&JsValue::from_str("white"));
-        for ((x, y), v) in grid() {
-            if v == 1 {
-                ctx.fill_rect(
-                    (x as f64 - o_x) * cell_size(),
-                    (y as f64 - o_y) * cell_size(),
-                    cell_size(),
-                    cell_size(),
-                );
-            }
-        }
+        context()
+            .unwrap()
+            .set_fill_style(&JsValue::from_str("black"));
+        context()
+            .unwrap()
+            .fill_rect(0.0, 0.0, inner_width, inner_height);
     });
 
     view! {
@@ -144,10 +172,11 @@ pub fn Canvas() -> impl IntoView {
             }
 
             on:keydown=move |_| {
-                set_grid
-                    .update(|grid| {
-                        *grid = tick(&grid);
+                set_is_ticking
+                    .update(|s| {
+                        *s = !*s;
                     });
+                last_update.set_value(0.0);
             }
         >
         </canvas>
