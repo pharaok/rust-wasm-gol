@@ -531,6 +531,7 @@ dependencies = [
  "console_error_panic_hook",
  "leptos",
  "leptos-use",
+ "rustc-hash",
  "web-sys",
 ]
 

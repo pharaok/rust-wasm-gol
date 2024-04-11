@@ -1,7 +1,10 @@
+#![feature(hash_raw_entry)]
+
 use canvas::Canvas;
 use leptos::*;
 
 mod canvas;
+mod hashlife;
 
 fn main() {
     console_error_panic_hook::set_once();
