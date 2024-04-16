@@ -6,6 +6,7 @@ use leptos::*;
 mod button;
 mod canvas;
 mod hashlife;
+mod icons;
 
 fn main() {
     console_error_panic_hook::set_once();

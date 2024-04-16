@@ -5,7 +5,6 @@ use std::{
     vec,
 };
 
-use leptos::logging::log;
 use rustc_hash::{FxHashMap, FxHasher};
 
 pub const LEAF_LEVEL: usize = 1;

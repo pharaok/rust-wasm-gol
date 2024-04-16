@@ -10,6 +10,7 @@ use web_sys::{
 use crate::{
     button::Button,
     hashlife::{self, Node, NodeKind, Universe},
+    icons::*,
 };
 
 fn draw_node(ctx: &CanvasRenderingContext2d, node: &Node, o_x: f64, o_y: f64, cell_size: f64) {
@@ -54,8 +55,10 @@ pub fn Canvas() -> impl IntoView {
     let inner_width = window().inner_width().unwrap().as_f64().unwrap();
     let inner_height = window().inner_height().unwrap().as_f64().unwrap();
 
-    let (root_node, set_root_node) = create_signal(Node::new(16));
+    let (root, set_root) = create_signal(Node::new(16));
     let universe = store_value(Universe::new());
+    let (history, set_history) = create_signal(Vec::<Node>::new());
+
     let (cell_size, set_cell_size) = create_signal::<f64>(32.0);
     let (origin, set_origin) = create_signal((0.0, 0.0));
     let pinned = store_value::<Option<(f64, f64)>>(None);
@@ -66,6 +69,28 @@ pub fn Canvas() -> impl IntoView {
     let fps = store_value(0.0);
     let (shown_fps, set_shown_fps) = create_signal(0.0);
     let (step, set_step) = create_signal(0);
+
+    let step_root = move || {
+        if step.get_untracked() == -1 {
+            if history.get_untracked().is_empty() {
+                set_is_ticking(false);
+                return;
+            }
+            set_history.update(|h| {
+                set_root.update(|grid| {
+                    *grid = h.pop().unwrap();
+                });
+            })
+        } else {
+            set_history.update(|h| {
+                h.push(root.get_untracked().clone());
+            });
+            set_root.update(|grid| {
+                grid.grow();
+                *grid = universe.get_value().step(grid, step.get_untracked());
+            });
+        }
+    };
 
     let Pausable {
         pause: _,
@@ -81,10 +106,7 @@ pub fn Canvas() -> impl IntoView {
         };
 
         if is_ticking.get_untracked() && ticks > 0 {
-            set_root_node.update(|grid| {
-                grid.grow();
-                *grid = universe.get_value().step(grid, step.get_untracked());
-            });
+            step_root();
             last_update.set_value(raf_args.timestamp);
         }
 
@@ -95,7 +117,7 @@ pub fn Canvas() -> impl IntoView {
         ctx.set_fill_style(&JsValue::from_str("black"));
         ctx.fill_rect(0.0, 0.0, inner_width, inner_height);
 
-        let half = (1 << (root_node.get_untracked().level - 1)) as f64;
+        let half = (1 << (root.get_untracked().level - 1)) as f64;
         let (w, h) = (inner_width / cell_size, inner_height / cell_size);
 
         // grid lines
@@ -115,7 +137,7 @@ pub fn Canvas() -> impl IntoView {
         ctx.set_fill_style(&JsValue::from_str("white"));
         draw_node(
             &ctx,
-            &root_node.get_untracked(),
+            &root.get_untracked(),
             -o_x - half,
             -o_y - half,
             cell_size,
@@ -166,8 +188,8 @@ pub fn Canvas() -> impl IntoView {
                     match ev.button() {
                         0 => {
                             let (cx, cy) = (grid_x.floor() as i32, grid_y.floor() as i32);
-                            let cell = root_node.get_untracked().get(cx, cy);
-                            set_root_node
+                            let cell = root.get_untracked().get(cx, cy);
+                            set_root
                                 .update(|grid| {
                                     grid.insert(cx, cy, if cell == 0 { 1 } else { 0 });
                                 });
@@ -224,9 +246,11 @@ pub fn Canvas() -> impl IntoView {
             <div class="absolute inset-0 w-full h-full pointer-events-none [&>*]:pointer-events-auto">
 
                 <div class="text-white absolute top-2 left-2 bg-white/10 rounded-lg p-2">
-                    <div>{move || format!("gen: {}", root_node().generation.get())}</div>
-                    <div>{move || format!("pop: {}", root_node().population.get())}</div>
-                    <div>{move || format!("step: {}", 1 << step())}</div>
+                    <div>{move || format!("gen: {}", root().generation.get())}</div>
+                    <div>{move || format!("pop: {}", root().population.get())}</div>
+                    <div>
+                        {move || format!("step: {}", if step() == -1 { -1 } else { 1 << step() })}
+                    </div>
                     <div>{move || format!("tps: {}", tps())}</div>
                     <div>{move || format!("fps: {}", shown_fps() as i32)}</div>
 
@@ -235,105 +259,47 @@ pub fn Canvas() -> impl IntoView {
                     <div class="flex gap-2 items-center">
 
                         <Button on_press=move || {
-                            set_step.update(|s| *s = (*s - 1).max(0));
+                            set_step.update(|s| *s = (*s - 1).max(-1));
                         }>
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="24"
-                                height="24"
-                                viewBox="0 0 24 24"
-                                fill="currentColor"
-                                stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                class="lucide lucide-rewind"
-                            >
-                                <polygon points="11 19 2 12 11 5 11 19"></polygon>
-                                <polygon points="22 19 13 12 22 5 22 19"></polygon>
-                            </svg>
+                            <Rewind/>
                         </Button>
                         <Button on_press=move || {
-                            set_step.update(|s| *s = (*s + 1).min(root_node().level as i32));
+                            set_step.update(|s| *s = (*s + 1).min(root().level as i32));
                         }>
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="24"
-                                height="24"
-                                viewBox="0 0 24 24"
-                                fill="currentColor"
-                                stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                class="lucide lucide-fast-forward"
-                            >
-                                <polygon points="13 19 22 12 13 5 13 19"></polygon>
-                                <polygon points="2 19 11 12 2 5 2 19"></polygon>
-                            </svg>
+                            <FastForward/>
                         </Button>
 
-                        <div class="h-8 bg-slate-800 w-px"></div>
+                        <div class="h-8 bg-gray-300 w-px"></div>
 
-                        <Button on_press=move || {
-                            set_is_ticking.update(|s| *s = !*s);
-                        }>
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="24"
-                                height="24"
-                                viewBox="0 0 24 24"
-                                fill="currentColor"
-                                stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                class="lucide lucide-step-back"
-                            >
-                                <line x1="18" x2="18" y1="20" y2="4"></line>
-                                <polygon points="14,20 4,12 14,4"></polygon>
-                            </svg>
+                        <Button
+                            disabled=Signal::derive(move || history().is_empty())
+                            on_press=move || {
+                                if history().is_empty() {
+                                    return;
+                                }
+                                set_history
+                                    .update(|h| {
+                                        set_root(h.pop().unwrap());
+                                    });
+                            }
+                        >
+
+                            <StepBack/>
                         </Button>
                         <Button on_press=move || {
-                            set_is_ticking.update(|s| *s = !*s);
+                            set_is_ticking.update(|s| *s = !*s)
                         }>
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="24"
-                                height="24"
-                                viewBox="0 0 24 24"
-                                fill="currentColor"
-                                stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                class="lucide lucide-play"
-                            >
-                                <polygon points="6 3 20 12 6 21 6 3"></polygon>
-                            </svg>
+                            {move || {
+                                if is_ticking() {
+                                    view! { <Pause/> }
+                                } else {
+                                    view! { <Play/> }
+                                }
+                            }}
+
                         </Button>
-                        <Button on_press=move || {
-                            set_root_node
-                                .update(|grid| {
-                                    grid.grow();
-                                    *grid = universe.get_value().step(grid, step.get_untracked());
-                                });
-                        }>
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="24"
-                                height="24"
-                                viewBox="0 0 24 24"
-                                fill="currentColor"
-                                stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                class="lucide lucide-step-forward"
-                            >
-                                <line x1="6" x2="6" y1="4" y2="20"></line>
-                                <polygon points="10,4 20,12 10,20"></polygon>
-                            </svg>
+                        <Button on_press=move || step_root()>
+                            <StepForward/>
                         </Button>
                     </div>
 
