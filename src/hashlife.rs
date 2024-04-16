@@ -377,7 +377,7 @@ impl Eq for Node {}
 
 #[derive(Clone)]
 pub struct Universe {
-    pub cache: RefCell<FxHashMap<(Node, u64), Node>>,
+    pub cache: RefCell<FxHashMap<(Node, i32), Node>>,
 }
 
 impl Universe {
@@ -402,8 +402,8 @@ impl Universe {
         count
     }
 
-    pub fn step(&mut self, node: &Node, generations: u64) -> Node {
-        let generations = generations.min(node.level as u64 - 2);
+    pub fn step(&mut self, node: &Node, generations: i32) -> Node {
+        let generations = generations.min(node.level as i32 - 2);
 
         let mut state = self.cache.borrow().hasher().build_hasher();
         node.hash(&mut state);
@@ -451,7 +451,7 @@ impl Universe {
             let mut ne = Node::new_branch(&quads[1], &quads[2], &quads[4], &quads[5]);
             let mut sw = Node::new_branch(&quads[3], &quads[4], &quads[6], &quads[7]);
             let mut se = Node::new_branch(&quads[4], &quads[5], &quads[7], &quads[8]);
-            if generations + 2 >= node.level as u64 {
+            if generations + 2 >= node.level as i32 {
                 nw = self.step(&nw, generations);
                 ne = self.step(&ne, generations);
                 sw = self.step(&sw, generations);

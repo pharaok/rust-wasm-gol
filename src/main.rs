@@ -3,6 +3,7 @@
 use canvas::Canvas;
 use leptos::*;
 
+mod button;
 mod canvas;
 mod hashlife;
 
