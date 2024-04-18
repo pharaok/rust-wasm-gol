@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{cell::RefCell, rc::Rc, time::Duration};
 
 use leptos::{logging::log, *};
 use leptos_use::{use_raf_fn, utils::Pausable};
@@ -55,8 +55,8 @@ pub fn Canvas() -> impl IntoView {
     let inner_width = window().inner_width().unwrap().as_f64().unwrap();
     let inner_height = window().inner_height().unwrap().as_f64().unwrap();
 
-    let (root, set_root) = create_signal(Node::new(16));
-    let universe = store_value(Universe::new());
+    let (universe, set_universe) = create_signal(Universe::new());
+    let root = Signal::derive(move || universe().root);
     let (history, set_history) = create_signal(Vec::<Node>::new());
 
     let (cell_size, set_cell_size) = create_signal::<f64>(32.0);
@@ -80,17 +80,16 @@ pub fn Canvas() -> impl IntoView {
                 return;
             }
             set_history.update(|h| {
-                set_root.update(|grid| {
-                    *grid = h.pop().unwrap();
+                set_universe.update(|u| {
+                    u.root = Rc::new(RefCell::new(h.pop().unwrap()));
                 });
             })
         } else {
             set_history.update(|h| {
-                h.push(root.get_untracked().clone());
+                h.push(root.get_untracked().borrow().clone());
             });
-            set_root.update(|grid| {
-                grid.grow();
-                *grid = universe.get_value().step(grid, step.get_untracked());
+            set_universe.update(|u| {
+                u.steppa(step.get_untracked());
             });
         }
     };
@@ -120,7 +119,7 @@ pub fn Canvas() -> impl IntoView {
         ctx.set_fill_style(&JsValue::from_str("black"));
         ctx.fill_rect(0.0, 0.0, inner_width, inner_height);
 
-        let half = (1 << (root.get_untracked().level - 1)) as f64;
+        let half = (1 << (root.get_untracked().borrow().level - 1)) as f64;
         let (w, h) = (inner_width / cell_size, inner_height / cell_size);
 
         // grid lines
@@ -140,7 +139,7 @@ pub fn Canvas() -> impl IntoView {
         ctx.set_fill_style(&JsValue::from_str("white"));
         draw_node(
             &ctx,
-            &root.get_untracked(),
+            &root.get_untracked().borrow(),
             -o_x - half,
             -o_y - half,
             cell_size,
@@ -196,10 +195,12 @@ pub fn Canvas() -> impl IntoView {
                     log!("{}", ev.button());
                     match ev.button() {
                         0 => {
-                            let cell = root.get_untracked().get(cx, cy);
-                            set_root
-                                .update(|grid| {
-                                    grid.insert(cx, cy, if cell == 0 { 1 } else { 0 });
+                            let cell = root.get_untracked().borrow().get(cx, cy);
+                            set_universe
+                                .update(|u| {
+                                    u.root
+                                        .borrow_mut()
+                                        .insert(cx, cy, if cell == 0 { 1 } else { 0 });
                                 });
                         }
                         1 => {
@@ -287,8 +288,8 @@ pub fn Canvas() -> impl IntoView {
                 </div>
 
                 <div class="text-white absolute top-2 left-2 bg-white/10 rounded-lg p-2">
-                    <div>{move || format!("gen: {}", root().generation.get())}</div>
-                    <div>{move || format!("pop: {}", root().population.get())}</div>
+                    <div>{move || format!("gen: {}", universe().generation)}</div>
+                    <div>{move || format!("pop: {}", root().borrow().population.get())}</div>
                     <div>
                         {move || format!("step: {}", if step() == -1 { -1 } else { 1 << step() })}
                     </div>
@@ -305,7 +306,7 @@ pub fn Canvas() -> impl IntoView {
                             <Rewind/>
                         </Button>
                         <Button on_press=move || {
-                            set_step.update(|s| *s = (*s + 1).min(root().level as i32));
+                            set_step.update(|s| *s = (*s + 1).min(root().borrow().level as i32));
                         }>
                             <FastForward/>
                         </Button>
@@ -320,7 +321,10 @@ pub fn Canvas() -> impl IntoView {
                                 }
                                 set_history
                                     .update(|h| {
-                                        set_root(h.pop().unwrap());
+                                        set_universe
+                                            .update(|u| {
+                                                u.root = Rc::new(RefCell::new(h.pop().unwrap()));
+                                            });
                                     });
                             }
                         >

@@ -295,7 +295,7 @@ impl Node {
         ret
     }
 
-    pub fn grow(&mut self) {
+    pub fn grown(&self) -> Node {
         let mut new_node = Self::new(self.level + 1);
         let quarter = 1 << (self.level - 2);
         if let NodeKind::Branch { nw, ne, sw, se } = &self.node {
@@ -304,35 +304,8 @@ impl Node {
             *new_node.get_mut_with_center(-quarter, quarter) = Rc::clone(sw);
             *new_node.get_mut_with_center(quarter, quarter) = Rc::clone(se);
         }
-        self.node = new_node.node;
-        self.level += 1;
-        self.memo_hash.take();
-    }
-
-    pub fn to_grid(&self) -> Vec<Vec<u8>> {
-        let mut v = vec![vec![0; 1 << self.level]; 1 << self.level];
-        self._to_grid(&mut v, 0, 0);
-        v
-    }
-    fn _to_grid(&self, grid: &mut Vec<Vec<u8>>, x: usize, y: usize) {
-        match &self.node {
-            NodeKind::Leaf(v) => {
-                if self.level == LEAF_LEVEL {
-                    for i in 0..LEAF_SIZE {
-                        for j in 0..LEAF_SIZE {
-                            grid[y + i][x + j] = v[i][j];
-                        }
-                    }
-                }
-            }
-            NodeKind::Branch { nw, ne, sw, se } => {
-                let half = 1 << (self.level - 1);
-                nw.borrow()._to_grid(grid, x, y);
-                ne.borrow()._to_grid(grid, x + half, y);
-                sw.borrow()._to_grid(grid, x, y + half);
-                se.borrow()._to_grid(grid, x + half, y + half);
-            }
-        }
+        new_node.level = self.level + 1;
+        new_node
     }
 }
 
@@ -377,12 +350,16 @@ impl Eq for Node {}
 #[derive(Clone)]
 pub struct Universe {
     pub cache: RefCell<FxHashMap<(Node, i32), Node>>,
+    pub root: Rc<RefCell<Node>>,
+    pub generation: u64,
 }
 
 impl Universe {
     pub fn new() -> Self {
         Self {
             cache: RefCell::new(FxHashMap::default()),
+            root: Rc::new(RefCell::new(Node::new(16))),
+            generation: 0,
         }
     }
 
@@ -401,9 +378,15 @@ impl Universe {
         count
     }
 
-    pub fn step(&mut self, node: &Node, generations: i32) -> Node {
-        let generations = generations.min(node.level as i32 - 2);
+    pub fn steppa(&mut self, generations: i32) {
+        let generations = generations.min(self.root.borrow().level as i32 - 2);
+        let next = Rc::new(RefCell::new(
+            self.step(&self.root.borrow().grown(), generations),
+        ));
+        self.root = next;
+    }
 
+    pub fn step(&self, node: &Node, generations: i32) -> Node {
         let mut state = self.cache.borrow().hasher().build_hasher();
         node.hash(&mut state);
         generations.hash(&mut state);
@@ -415,11 +398,7 @@ impl Universe {
             .raw_entry()
             .from_hash(hash, |(n, g)| n == node && *g == generations)
         {
-            let new_node = n.clone();
-            new_node
-                .generation
-                .set(node.generation.get() + (1 << generations));
-            return new_node;
+            return n.clone();
         }
 
         let new_node = if node.level == LEAF_LEVEL + 1 {
@@ -469,9 +448,6 @@ impl Universe {
                 &Rc::new(RefCell::new(se)),
             )
         };
-        new_node
-            .generation
-            .set(node.generation.get() + (1 << generations));
 
         self.cache
             .borrow_mut()
