@@ -65,10 +65,13 @@ pub fn Canvas() -> impl IntoView {
 
     let (is_ticking, set_is_ticking) = create_signal(false);
     let last_update = store_value(0.0);
-    let tps = store_value(10.0);
+    let tps = store_value(20.0);
     let fps = store_value(0.0);
     let (shown_fps, set_shown_fps) = create_signal(0.0);
     let (step, set_step) = create_signal(0);
+
+    let (selection_start, set_selection_start) = create_signal::<Option<(i32, i32)>>(None);
+    let (selection_end, set_selection_end) = create_signal::<Option<(i32, i32)>>(None);
 
     let step_root = move || {
         if step.get_untracked() == -1 {
@@ -181,40 +184,56 @@ pub fn Canvas() -> impl IntoView {
                     ev.prevent_default();
                 }
 
-                on:pointerdown=move |ev| {
+                on:mousedown=move |ev| {
+                    if ev.button() != 1 {
+                        set_selection_start(None);
+                        set_selection_end(None);
+                    }
                     let (o_x, o_y) = origin();
                     let grid_x = ev.offset_x() as f64 / cell_size() + o_x;
                     let grid_y = ev.offset_y() as f64 / cell_size() + o_y;
+                    let (cx, cy) = (grid_x.floor() as i32, grid_y.floor() as i32);
+                    log!("{}", ev.button());
                     match ev.button() {
                         0 => {
-                            let (cx, cy) = (grid_x.floor() as i32, grid_y.floor() as i32);
                             let cell = root.get_untracked().get(cx, cy);
                             set_root
                                 .update(|grid| {
                                     grid.insert(cx, cy, if cell == 0 { 1 } else { 0 });
                                 });
                         }
-                        2 => {
+                        1 => {
                             pinned.set_value(Some((grid_x, grid_y)));
                             ev.prevent_default();
+                        }
+                        2 => {
+                            set_selection_start(Some((cx, cy)));
                         }
                         _ => {}
                     }
                 }
 
-                on:pointermove=move |ev| {
+                on:mousemove=move |ev| {
+                    let (o_x, o_y) = origin();
+                    let grid_x = ev.offset_x() as f64 / cell_size() + o_x;
+                    let grid_y = ev.offset_y() as f64 / cell_size() + o_y;
                     if let Some((p_x, p_y)) = pinned() {
-                        let (o_x, o_y) = origin();
-                        let grid_x = ev.offset_x() as f64 / cell_size() + o_x;
-                        let grid_y = ev.offset_y() as f64 / cell_size() + o_y;
                         let delta_x = grid_x - p_x;
                         let delta_y = grid_y - p_y;
                         set_origin((o_x - delta_x, o_y - delta_y));
                     }
+                    if ev.buttons() & 0b110 == 2 {
+                        set_selection_end(Some((grid_x as i32, grid_y as i32)));
+                    }
                 }
 
-                on:pointerup=move |_| {
-                    pinned.set_value(None);
+                on:mouseup=move |ev| {
+                    match ev.button() {
+                        1 => {
+                            pinned.set_value(None);
+                        }
+                        _ => {}
+                    }
                 }
 
                 on:wheel=move |ev| {
@@ -243,7 +262,29 @@ pub fn Canvas() -> impl IntoView {
                 }
             >
             </canvas>
-            <div class="absolute inset-0 w-full h-full pointer-events-none [&>*]:pointer-events-auto">
+            <div class="absolute inset-0 w-full h-full pointer-events-none">
+                <div
+                    class="bg-blue-600/20 border border-blue-600/50 absolute"
+                    style=move || {
+                        let (o_x, o_y) = origin();
+                        if let (Some((x1, y1)), Some((x2, y2))) = (
+                            selection_start(),
+                            selection_end(),
+                        ) {
+                            let (t, r, b, l) = (y1.min(y2), x1.max(x2), y1.max(y2), x1.min(x2));
+                            format!(
+                                "left: {}px; top: {}px; width: {}px; height: {}px;;",
+                                (l as f64 - o_x) * cell_size(),
+                                (t as f64 - o_y) * cell_size(),
+                                (r - l + 1) as f64 * cell_size(),
+                                (b - t + 1) as f64 * cell_size(),
+                            )
+                        } else {
+                            "".to_string()
+                        }
+                    }
+                >
+                </div>
 
                 <div class="text-white absolute top-2 left-2 bg-white/10 rounded-lg p-2">
                     <div>{move || format!("gen: {}", root().generation.get())}</div>
@@ -255,7 +296,7 @@ pub fn Canvas() -> impl IntoView {
                     <div>{move || format!("fps: {}", shown_fps() as i32)}</div>
 
                 </div>
-                <div class="absolute bottom-2 left-[50%] -translate-x-[50%] bg-white/10 rounded-lg p-2">
+                <div class="absolute bottom-2 left-[50%] -translate-x-[50%] bg-white/10 rounded-lg p-2 pointer-events-auto">
                     <div class="flex gap-2 items-center">
 
                         <Button on_press=move || {
