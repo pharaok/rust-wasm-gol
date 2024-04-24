@@ -65,13 +65,14 @@ pub fn Canvas() -> impl IntoView {
 
     let (is_ticking, set_is_ticking) = create_signal(false);
     let last_update = store_value(0.0);
-    let tps = store_value(20.0);
+    let tps = store_value(10.0);
     let fps = store_value(0.0);
     let (shown_fps, set_shown_fps) = create_signal(0.0);
     let (step, set_step) = create_signal(0);
 
     let (selection_start, set_selection_start) = create_signal::<Option<(i32, i32)>>(None);
     let (selection_end, set_selection_end) = create_signal::<Option<(i32, i32)>>(None);
+    let clipboard = store_value::<Option<Vec<Vec<u8>>>>(None);
 
     let step_root = move || {
         if step.get_untracked() == -1 {
@@ -89,7 +90,7 @@ pub fn Canvas() -> impl IntoView {
                 h.push(root.get_untracked().borrow().clone());
             });
             set_universe.update(|u| {
-                u.steppa(step.get_untracked());
+                u.step(step.get_untracked());
             });
         }
     };
@@ -252,10 +253,40 @@ pub fn Canvas() -> impl IntoView {
                 }
 
                 on:keydown=move |ev| {
-                    log!("key: {}", ev.key());
                     match ev.key().as_str() {
                         " " => {
                             set_is_ticking.update(|s| *s = !*s);
+                        }
+                        "c" => {
+                            if ev.ctrl_key() {
+                                if let (Some((x1, y1)), Some((x2, y2))) = (
+                                    selection_start(),
+                                    selection_end(),
+                                ) {
+                                    let (t, r, b, l) = (
+                                        y1.min(y2),
+                                        x1.max(x2),
+                                        y1.max(y2),
+                                        x1.min(x2),
+                                    );
+                                    let rect = root().borrow().get_rect(l, t, r + 1, b + 1);
+                                    clipboard.set_value(Some(rect));
+                                    set_selection_start(None);
+                                    set_selection_end(None);
+                                }
+                            }
+                        }
+                        "v" => {
+                            if ev.ctrl_key() {
+                                if let Some(clip) = clipboard() {
+                                    let (x, y) = selection_start().unwrap();
+                                    log!("{x} {y} {} {}", clip[0].len(), clip.len());
+                                    set_universe
+                                        .update(|u| {
+                                            u.root.borrow_mut().set_rect(x, y, &clip);
+                                        });
+                                }
+                            }
                         }
                         _ => {}
                     }

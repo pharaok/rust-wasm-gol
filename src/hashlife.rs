@@ -53,7 +53,6 @@ impl From<Leaf> for NodeKind {
 pub struct Node {
     pub node: NodeKind,
     pub level: usize,
-    pub generation: Cell<u64>,
     pub population: Cell<i32>,
     pub memo_hash: Cell<Option<u64>>,
 }
@@ -63,7 +62,6 @@ impl Node {
         Self {
             node: NodeKind::new_leaf(),
             level,
-            generation: Cell::new(0),
             population: Cell::new(0),
             memo_hash: Cell::new(None),
         }
@@ -82,7 +80,6 @@ impl Node {
         Self {
             node: NodeKind::new_branch(nw, ne, sw, se),
             level,
-            generation: Cell::new(0),
             population: Cell::new(population),
             memo_hash: Cell::new(None),
         }
@@ -212,6 +209,103 @@ impl Node {
         }
     }
 
+    pub fn get_rect(&self, x1: i32, y1: i32, x2: i32, y2: i32) -> Vec<Vec<u8>> {
+        let half = 1 << (self.level - 1);
+        let (x1, y1, x2, y2) = (x1.max(-half), y1.max(-half), x2.min(half), y2.min(half));
+
+        let (w, h) = ((x2 - x1) as usize, (y2 - y1) as usize);
+        let mut grid = vec![vec![0; w]; h];
+
+        self._get_rect(x1, y1, x2, y2, &mut grid);
+
+        grid
+    }
+    fn _get_rect(&self, x1: i32, y1: i32, x2: i32, y2: i32, grid: &mut Vec<Vec<u8>>) {
+        let half = 1 << (self.level - 1);
+        if x1 >= half || y1 >= half || x2 < -half || y2 < -half || self.population.get() == 0 {
+            return;
+        }
+        let (w, h) = ((x2 - x1) as usize, (y2 - y1) as usize);
+
+        match &self.node {
+            NodeKind::Leaf(v) => {
+                if self.level != LEAF_LEVEL {
+                    return;
+                }
+                for i in 0..LEAF_SIZE {
+                    for j in 0..LEAF_SIZE {
+                        let (x, y) = ((j as i32 - x1 - 1) as usize, (i as i32 - y1 - 1) as usize);
+                        if x < w && y < h {
+                            grid[y][x] = v[i][j];
+                        }
+                    }
+                }
+            }
+            NodeKind::Branch { nw, ne, sw, se } => {
+                let q = 1 << (self.level - 2);
+                nw.borrow()._get_rect(x1 + q, y1 + q, x2 + q, y2 + q, grid);
+                ne.borrow()._get_rect(x1 - q, y1 + q, x2 - q, y2 + q, grid);
+                sw.borrow()._get_rect(x1 + q, y1 - q, x2 + q, y2 - q, grid);
+                se.borrow()._get_rect(x1 - q, y1 - q, x2 - q, y2 - q, grid);
+            }
+        }
+    }
+    pub fn set_rect(&mut self, x: i32, y: i32, grid: &Vec<Vec<u8>>) {
+        self._set_rect(x, y, grid);
+    }
+    fn _set_rect(&mut self, x: i32, y: i32, grid: &Vec<Vec<u8>>) -> i32 {
+        let half = 1 << (self.level - 1);
+        let (w, h) = (grid[0].len(), grid.len());
+
+        if x >= half || y >= half || x + (w as i32) < -half || y + (h as i32) < -half {
+            return 0;
+        }
+
+        self.memo_hash.take();
+
+        if let NodeKind::Leaf(v) = &mut self.node {
+            if self.level == LEAF_LEVEL {
+                let mut d = 0;
+                for i in 0..LEAF_SIZE {
+                    for j in 0..LEAF_SIZE {
+                        let (x, y) = ((j as i32 - x - 1) as usize, (i as i32 - y - 1) as usize);
+                        if x < w && y < h {
+                            d += grid[y][x] as i32 - v[i][j] as i32;
+                            v[i][j] = grid[y][x];
+                        }
+                    }
+                }
+                self.population.set(self.population.get() + d);
+                return d;
+            }
+
+            self.subdivide();
+        }
+        let (nw, ne, sw, se) = match &mut self.node {
+            NodeKind::Branch { nw, ne, sw, se } => (nw, ne, sw, se),
+            _ => panic!(),
+        };
+
+        let q = 1 << (self.level - 2);
+        let mut d = 0;
+
+        let cloned = nw.borrow().clone();
+        *nw = Rc::new(RefCell::new(cloned));
+        let cloned = ne.borrow().clone();
+        *ne = Rc::new(RefCell::new(cloned));
+        let cloned = sw.borrow().clone();
+        *sw = Rc::new(RefCell::new(cloned));
+        let cloned = se.borrow().clone();
+        *se = Rc::new(RefCell::new(cloned));
+
+        d += nw.borrow_mut()._set_rect(x + q, y + q, grid);
+        d += ne.borrow_mut()._set_rect(x - q, y + q, grid);
+        d += sw.borrow_mut()._set_rect(x + q, y - q, grid);
+        d += se.borrow_mut()._set_rect(x - q, y - q, grid);
+        self.population.set(self.population.get() + d);
+        d
+    }
+
     pub fn is_leaf(&self) -> bool {
         matches!(self.node, NodeKind::Leaf(_))
     }
@@ -237,7 +331,7 @@ impl Node {
                         NodeKind::Leaf(v) => v,
                         _ => panic!(),
                     };
-                    // HACK: !!!!!
+                    // HACK:
                     let (i, j) = ((yy - 1) / 2, (xx - 1) / 2);
                     let (ii, jj) = (
                         (if y == 0 { -yy } else { yy } + 1) / 2,
@@ -272,6 +366,7 @@ impl Node {
 
         let ret;
 
+        // WARN:
         unsafe {
             self.subdivide();
             let mut node: *mut Rc<RefCell<Self>> = self.get_child_mut(x, y);
@@ -342,7 +437,7 @@ impl PartialEq for Node {
         let mut other_state = FxHasher::default();
         self.hash(&mut state);
         other.hash(&mut other_state);
-        state.finish() == other_state.finish() // HACK: ICKY
+        state.finish() == other_state.finish() // HACK: I shouldn't do this
     }
 }
 impl Eq for Node {}
@@ -378,15 +473,14 @@ impl Universe {
         count
     }
 
-    pub fn steppa(&mut self, generations: i32) {
+    pub fn step(&mut self, generations: i32) {
         let generations = generations.min(self.root.borrow().level as i32 - 2);
-        let next = Rc::new(RefCell::new(
-            self.step(&self.root.borrow().grown(), generations),
-        ));
-        self.root = next;
+        let next = self.step_node(&self.root.borrow().grown(), generations);
+        self.generation += (1 << generations) as u64;
+        self.root = Rc::new(RefCell::new(next));
     }
 
-    pub fn step(&self, node: &Node, generations: i32) -> Node {
+    fn step_node(&self, node: &Node, generations: i32) -> Node {
         let mut state = self.cache.borrow().hasher().build_hasher();
         node.hash(&mut state);
         generations.hash(&mut state);
@@ -420,7 +514,9 @@ impl Universe {
             for y in -1..=1 {
                 for x in -1..=1 {
                     let pseudo_child = node.get_pseudo_child(x, y);
-                    quads.push(Rc::new(RefCell::new(self.step(&pseudo_child, generations))));
+                    quads.push(Rc::new(RefCell::new(
+                        self.step_node(&pseudo_child, generations),
+                    )));
                 }
             }
 
@@ -430,10 +526,10 @@ impl Universe {
             let mut sw = Node::new_branch(&quads[3], &quads[4], &quads[6], &quads[7]);
             let mut se = Node::new_branch(&quads[4], &quads[5], &quads[7], &quads[8]);
             if generations + 2 >= node.level as i32 {
-                nw = self.step(&nw, generations);
-                ne = self.step(&ne, generations);
-                sw = self.step(&sw, generations);
-                se = self.step(&se, generations);
+                nw = self.step_node(&nw, generations);
+                ne = self.step_node(&ne, generations);
+                sw = self.step_node(&sw, generations);
+                se = self.step_node(&se, generations);
             } else {
                 nw = nw.get_pseudo_child(0, 0);
                 ne = ne.get_pseudo_child(0, 0);
