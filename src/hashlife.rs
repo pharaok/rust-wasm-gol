@@ -2,17 +2,16 @@ use std::{
     cell::{Cell, RefCell},
     hash::{BuildHasher, Hash, Hasher},
     rc::Rc,
-    vec,
 };
 
-use rustc_hash::{FxHashMap, FxHasher};
+use rustc_hash::FxHashMap;
 
 pub const LEAF_LEVEL: usize = 1;
 pub const LEAF_SIZE: usize = 1 << LEAF_LEVEL;
 
 type Leaf = [[u8; LEAF_SIZE]; LEAF_SIZE];
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub enum NodeKind {
     Leaf(Leaf),
     Branch {
@@ -155,7 +154,7 @@ impl Node {
     }
 
     pub fn insert(&mut self, x: i32, y: i32, value: u8) -> i32 {
-        self.memo_hash.take(); // invalidate cached hash
+        self.memo_hash.take(); // invalidate hash
 
         let half = 1 << (self.level - 1);
 
@@ -402,49 +401,37 @@ impl Node {
         new_node.level = self.level + 1;
         new_node
     }
-}
 
-impl Hash for Node {
-    fn hash<H: Hasher>(&self, state: &mut H) {
+    pub fn get_hash(&self, hasher: &impl BuildHasher) -> u64 {
+        let mut state = hasher.build_hasher();
+
         if self.memo_hash.get().is_none() {
-            let mut new_state = FxHasher::default();
-            match &self.node {
-                NodeKind::Leaf(v) => {
-                    v.hash(&mut new_state);
-                    self.level.hash(&mut new_state);
-                }
-                NodeKind::Branch { nw, ne, sw, se } => {
-                    nw.borrow().hash(&mut new_state);
-                    ne.borrow().hash(&mut new_state);
-                    sw.borrow().hash(&mut new_state);
-                    se.borrow().hash(&mut new_state);
+            if self.population.get() == 0 {
+                self.level.hash(&mut state);
+            } else {
+                match &self.node {
+                    NodeKind::Leaf(v) => {
+                        v.hash(&mut state);
+                        self.level.hash(&mut state);
+                    }
+                    NodeKind::Branch { nw, ne, sw, se } => {
+                        nw.borrow().get_hash(hasher).hash(&mut state);
+                        ne.borrow().get_hash(hasher).hash(&mut state);
+                        sw.borrow().get_hash(hasher).hash(&mut state);
+                        se.borrow().get_hash(hasher).hash(&mut state);
+                    }
                 }
             }
-            self.memo_hash.replace(Some(new_state.finish()));
-        }
-        // HACK: hashing the hash
-        self.memo_hash.get().unwrap().hash(state);
-    }
-}
-
-impl PartialEq for Node {
-    fn eq(&self, other: &Self) -> bool {
-        if self.level != other.level {
-            return false;
+            self.memo_hash.replace(Some(state.finish()));
         }
 
-        let mut state = FxHasher::default();
-        let mut other_state = FxHasher::default();
-        self.hash(&mut state);
-        other.hash(&mut other_state);
-        state.finish() == other_state.finish() // HACK: I shouldn't do this
+        self.memo_hash.get().unwrap()
     }
 }
-impl Eq for Node {}
 
 #[derive(Clone)]
 pub struct Universe {
-    pub cache: RefCell<FxHashMap<(Node, i32), Node>>,
+    pub cache: RefCell<FxHashMap<(u64, i32), Node>>,
     pub root: Rc<RefCell<Node>>,
     pub generation: u64,
 }
@@ -481,17 +468,9 @@ impl Universe {
     }
 
     fn step_node(&self, node: &Node, generations: i32) -> Node {
-        let mut state = self.cache.borrow().hasher().build_hasher();
-        node.hash(&mut state);
-        generations.hash(&mut state);
-        let hash = state.finish();
+        let node_hash = node.get_hash(self.cache.borrow().hasher());
 
-        if let Some((_, n)) = self
-            .cache
-            .borrow()
-            .raw_entry()
-            .from_hash(hash, |(n, g)| n == node && *g == generations)
-        {
+        if let Some(n) = self.cache.borrow().get(&(node_hash, generations)) {
             return n.clone();
         }
 
@@ -499,7 +478,7 @@ impl Universe {
             let mut new_node = Node::new(LEAF_LEVEL);
             for i in -1..1 {
                 for j in -1..1 {
-                    let v = match self.neighbor_count(&node, j, i) {
+                    let v = match self.neighbor_count(node, j, i) {
                         2 => node.get(j, i),
                         3 => 1,
                         _ => 0,
@@ -520,7 +499,6 @@ impl Universe {
                 }
             }
 
-            // WARN: ugly code
             let mut nw = Node::new_branch(&quads[0], &quads[1], &quads[3], &quads[4]);
             let mut ne = Node::new_branch(&quads[1], &quads[2], &quads[4], &quads[5]);
             let mut sw = Node::new_branch(&quads[3], &quads[4], &quads[6], &quads[7]);
@@ -547,9 +525,7 @@ impl Universe {
 
         self.cache
             .borrow_mut()
-            .raw_entry_mut()
-            .from_hash(hash, |(n, g)| n == node && *g == generations)
-            .or_insert((node.clone(), generations), new_node.clone());
+            .insert((node_hash, generations), new_node.clone());
 
         new_node
     }
