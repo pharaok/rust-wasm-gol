@@ -354,49 +354,26 @@ impl Node {
         new_node
     }
 
-    pub fn get_mut_with_center(&mut self, x: i32, y: i32) -> &mut Rc<RefCell<Self>> {
-        if x == 0 && y == 0 {
-            panic!();
-        }
-        let mut l = 1 << (self.level - 1);
-
-        let mut x = x;
-        let mut y = y;
-
-        let ret;
-
-        // WARN:
-        unsafe {
-            self.subdivide();
-            let mut node: *mut Rc<RefCell<Self>> = self.get_child_mut(x, y);
-            x = x.rem_euclid(l);
-            y = y.rem_euclid(l);
-            l >>= 1;
-            x -= l;
-            y -= l;
-
-            while x != 0 && y != 0 {
-                (*node).borrow_mut().subdivide();
-                node = (*node).borrow_mut().get_child_mut(x, y);
-                x = x.rem_euclid(l);
-                y = y.rem_euclid(l);
-                l >>= 1;
-                x -= l;
-                y -= l;
-            }
-            ret = &mut *node;
-        }
-        ret
-    }
-
     pub fn grown(&self) -> Node {
         let mut new_node = Self::new(self.level + 1);
-        let quarter = 1 << (self.level - 2);
-        if let NodeKind::Branch { nw, ne, sw, se } = &self.node {
-            *new_node.get_mut_with_center(-quarter, -quarter) = Rc::clone(nw);
-            *new_node.get_mut_with_center(quarter, -quarter) = Rc::clone(ne);
-            *new_node.get_mut_with_center(-quarter, quarter) = Rc::clone(sw);
-            *new_node.get_mut_with_center(quarter, quarter) = Rc::clone(se);
+        new_node.subdivide();
+        new_node.population.set(self.population.get());
+
+        for y in [-1, 1] {
+            for x in [-1, 1] {
+                let child = self.get_child(x, y);
+                let new_child = new_node.get_child(x, y);
+                new_child.borrow_mut().subdivide();
+                *new_child.borrow_mut().get_child_mut(-x, -y) = Rc::clone(child);
+
+                new_child
+                    .borrow_mut()
+                    .population
+                    .set(child.borrow().population.get());
+                new_node
+                    .population
+                    .set(new_node.population.get() + child.borrow().population.get());
+            }
         }
         new_node.level = self.level + 1;
         new_node
