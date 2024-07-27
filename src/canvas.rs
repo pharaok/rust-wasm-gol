@@ -37,12 +37,12 @@ fn draw_node(ctx: &CanvasRenderingContext2d, node: &Node, o_x: f64, o_y: f64, ce
                 }
             }
         }
-        NodeKind::Branch { nw, ne, sw, se } => {
+        NodeKind::Branch([nw, ne, sw, se]) => {
             let half = (1 << (node.level - 1)) as f64;
-            draw_node(ctx, &*nw.borrow(), o_x, o_y, cell_size);
-            draw_node(ctx, &*ne.borrow(), o_x + half, o_y, cell_size);
-            draw_node(ctx, &*sw.borrow(), o_x, o_y + half, cell_size);
-            draw_node(ctx, &*se.borrow(), o_x + half, o_y + half, cell_size);
+            draw_node(ctx, &nw.borrow(), o_x, o_y, cell_size);
+            draw_node(ctx, &ne.borrow(), o_x + half, o_y, cell_size);
+            draw_node(ctx, &sw.borrow(), o_x, o_y + half, cell_size);
+            draw_node(ctx, &se.borrow(), o_x + half, o_y + half, cell_size);
         }
     }
 }
@@ -199,9 +199,7 @@ pub fn Canvas() -> impl IntoView {
                             let cell = root.get_untracked().borrow().get(cx, cy);
                             set_universe
                                 .update(|u| {
-                                    u.root
-                                        .borrow_mut()
-                                        .insert(cx, cy, if cell == 0 { 1 } else { 0 });
+                                    u.insert(cx, cy, if cell == 0 { 1 } else { 0 });
                                 });
                         }
                         1 => {
@@ -280,7 +278,6 @@ pub fn Canvas() -> impl IntoView {
                             if ev.ctrl_key() {
                                 if let Some(clip) = clipboard() {
                                     let (x, y) = selection_start().unwrap();
-                                    log!("{x} {y} {} {}", clip[0].len(), clip.len());
                                     set_universe
                                         .update(|u| {
                                             u.root.borrow_mut().set_rect(x, y, &clip);
@@ -305,7 +302,7 @@ pub fn Canvas() -> impl IntoView {
                         ) {
                             let (t, r, b, l) = (y1.min(y2), x1.max(x2), y1.max(y2), x1.min(x2));
                             format!(
-                                "left: {}px; top: {}px; width: {}px; height: {}px;;",
+                                "left: {}px; top: {}px; width: {}px; height: {}px;",
                                 (l as f64 - o_x) * cell_size(),
                                 (t as f64 - o_y) * cell_size(),
                                 (r - l + 1) as f64 * cell_size(),
@@ -374,7 +371,7 @@ pub fn Canvas() -> impl IntoView {
                             }}
 
                         </Button>
-                        <Button on_press=move || step_root()>
+                        <Button on_press=step_root>
                             <StepForward/>
                         </Button>
                     </div>
