@@ -9,8 +9,9 @@ use web_sys::{
 
 use crate::{
     button::Button,
-    hashlife::{self, Node, NodeKind, Universe},
     icons::*,
+    quadtree::{self, Node, NodeKind},
+    universe::Universe,
 };
 
 fn draw_node(ctx: &CanvasRenderingContext2d, node: &Node, o_x: f64, o_y: f64, cell_size: f64) {
@@ -20,7 +21,7 @@ fn draw_node(ctx: &CanvasRenderingContext2d, node: &Node, o_x: f64, o_y: f64, ce
 
     match &node.node {
         NodeKind::Leaf(_) => {
-            if node.level != hashlife::LEAF_LEVEL {
+            if node.level != quadtree::LEAF_LEVEL {
                 return;
             }
             for y in -1..1 {
