@@ -14,12 +14,7 @@ type Leaf = [[u8; LEAF_SIZE]; LEAF_SIZE];
 #[derive(Clone)]
 pub enum NodeKind {
     Leaf(Leaf),
-    Branch {
-        nw: Rc<RefCell<Node>>,
-        ne: Rc<RefCell<Node>>,
-        sw: Rc<RefCell<Node>>,
-        se: Rc<RefCell<Node>>,
-    },
+    Branch([Rc<RefCell<Node>>; 4]), // [nw, ne, sw, se]
 }
 
 impl NodeKind {
@@ -27,18 +22,8 @@ impl NodeKind {
         Self::Leaf([[0; LEAF_SIZE]; LEAF_SIZE])
     }
 
-    pub fn new_branch(
-        nw: &Rc<RefCell<Node>>,
-        ne: &Rc<RefCell<Node>>,
-        sw: &Rc<RefCell<Node>>,
-        se: &Rc<RefCell<Node>>,
-    ) -> Self {
-        Self::Branch {
-            nw: Rc::clone(nw),
-            ne: Rc::clone(ne),
-            sw: Rc::clone(sw),
-            se: Rc::clone(se),
-        }
+    pub fn new_branch(children: [&Rc<RefCell<Node>>; 4]) -> Self {
+        Self::Branch(children.map(Rc::clone))
     }
 }
 
@@ -65,19 +50,11 @@ impl Node {
             memo_hash: Cell::new(None),
         }
     }
-    pub fn new_branch(
-        nw: &Rc<RefCell<Node>>,
-        ne: &Rc<RefCell<Node>>,
-        sw: &Rc<RefCell<Node>>,
-        se: &Rc<RefCell<Node>>,
-    ) -> Self {
-        let level = nw.borrow().level + 1;
-        let population = nw.borrow().population.get()
-            + ne.borrow().population.get()
-            + sw.borrow().population.get()
-            + se.borrow().population.get();
+    pub fn new_branch(children: [&Rc<RefCell<Node>>; 4]) -> Self {
+        let level = children[0].borrow().level + 1;
+        let population = children.map(|c| c.borrow().population.get()).iter().sum();
         Self {
-            node: NodeKind::new_branch(nw, ne, sw, se),
+            node: NodeKind::new_branch(children),
             level,
             population: Cell::new(population),
             memo_hash: Cell::new(None),
@@ -95,18 +72,31 @@ impl Node {
             let sw = Node::new(self.level - 1);
             let se = Node::new(self.level - 1);
 
-            self.node = NodeKind::new_branch(
+            self.node = NodeKind::new_branch([
                 &Rc::new(RefCell::new(nw)),
                 &Rc::new(RefCell::new(ne)),
                 &Rc::new(RefCell::new(sw)),
                 &Rc::new(RefCell::new(se)),
-            );
+            ]);
+        }
+    }
+
+    pub fn child(&self, i: usize) -> &Rc<RefCell<Self>> {
+        match &self.node {
+            NodeKind::Branch(children) => &children[i],
+            _ => panic!(),
+        }
+    }
+    pub fn child_mut(&mut self, i: usize) -> &mut Rc<RefCell<Self>> {
+        match &mut self.node {
+            NodeKind::Branch(children) => &mut children[i],
+            _ => panic!(),
         }
     }
 
     pub fn get_child(&self, x: i32, y: i32) -> &Rc<RefCell<Self>> {
         match &self.node {
-            NodeKind::Branch { nw, ne, sw, se } => match (x < 0, y < 0) {
+            NodeKind::Branch([nw, ne, sw, se]) => match (x < 0, y < 0) {
                 (true, true) => nw,
                 (false, true) => ne,
                 (true, false) => sw,
@@ -118,7 +108,7 @@ impl Node {
 
     pub fn get_child_mut(&mut self, x: i32, y: i32) -> &mut Rc<RefCell<Self>> {
         match &mut self.node {
-            NodeKind::Branch { nw, ne, sw, se } => match (x < 0, y < 0) {
+            NodeKind::Branch([nw, ne, sw, se]) => match (x < 0, y < 0) {
                 (true, true) => nw,
                 (false, true) => ne,
                 (true, false) => sw,
@@ -144,7 +134,7 @@ impl Node {
 
         match &self.node {
             NodeKind::Leaf(_) => 0,
-            NodeKind::Branch { nw, ne, sw, se } => match (x < 0, y < 0) {
+            NodeKind::Branch([nw, ne, sw, se]) => match (x < 0, y < 0) {
                 (true, true) => nw.borrow().get(x + quarter, y + quarter),
                 (false, true) => ne.borrow().get(x - quarter, y + quarter),
                 (true, false) => sw.borrow().get(x + quarter, y - quarter),
@@ -171,7 +161,7 @@ impl Node {
         }
 
         match &mut self.node {
-            NodeKind::Branch { nw, ne, sw, se } => {
+            NodeKind::Branch([nw, ne, sw, se]) => {
                 let quarter = 1 << (self.level - 2);
                 match (x < 0, y < 0) {
                     (true, true) => {
@@ -240,7 +230,7 @@ impl Node {
                     }
                 }
             }
-            NodeKind::Branch { nw, ne, sw, se } => {
+            NodeKind::Branch([nw, ne, sw, se]) => {
                 let q = 1 << (self.level - 2);
                 nw.borrow()._get_rect(x1 + q, y1 + q, x2 + q, y2 + q, grid);
                 ne.borrow()._get_rect(x1 - q, y1 + q, x2 - q, y2 + q, grid);
@@ -281,7 +271,7 @@ impl Node {
             self.subdivide();
         }
         let (nw, ne, sw, se) = match &mut self.node {
-            NodeKind::Branch { nw, ne, sw, se } => (nw, ne, sw, se),
+            NodeKind::Branch([nw, ne, sw, se]) => (nw, ne, sw, se),
             _ => panic!(),
         };
 
@@ -359,22 +349,17 @@ impl Node {
         new_node.subdivide();
         new_node.population.set(self.population.get());
 
-        for y in [-1, 1] {
-            for x in [-1, 1] {
-                let child = self.get_child(x, y);
-                let new_child = new_node.get_child(x, y);
-                new_child.borrow_mut().subdivide();
-                *new_child.borrow_mut().get_child_mut(-x, -y) = Rc::clone(child);
-
-                new_child
-                    .borrow_mut()
-                    .population
-                    .set(child.borrow().population.get());
-                new_node
-                    .population
-                    .set(new_node.population.get() + child.borrow().population.get());
-            }
+        for i in 0..4 {
+            let child = self.child(i);
+            let new_child = new_node.child(i);
+            new_child.borrow_mut().subdivide();
+            *new_child.borrow_mut().child_mut(3 - i) = Rc::clone(child);
+            new_child
+                .borrow_mut()
+                .population
+                .set(child.borrow().population.get());
         }
+
         new_node.level = self.level + 1;
         new_node
     }
@@ -391,7 +376,7 @@ impl Node {
                         v.hash(&mut state);
                         self.level.hash(&mut state);
                     }
-                    NodeKind::Branch { nw, ne, sw, se } => {
+                    NodeKind::Branch([nw, ne, sw, se]) => {
                         nw.borrow().get_hash(hasher).hash(&mut state);
                         ne.borrow().get_hash(hasher).hash(&mut state);
                         sw.borrow().get_hash(hasher).hash(&mut state);
@@ -476,28 +461,18 @@ impl Universe {
                 }
             }
 
-            let mut nw = Node::new_branch(&quads[0], &quads[1], &quads[3], &quads[4]);
-            let mut ne = Node::new_branch(&quads[1], &quads[2], &quads[4], &quads[5]);
-            let mut sw = Node::new_branch(&quads[3], &quads[4], &quads[6], &quads[7]);
-            let mut se = Node::new_branch(&quads[4], &quads[5], &quads[7], &quads[8]);
+            let mut children = [
+                Node::new_branch([&quads[0], &quads[1], &quads[3], &quads[4]]),
+                Node::new_branch([&quads[1], &quads[2], &quads[4], &quads[5]]),
+                Node::new_branch([&quads[3], &quads[4], &quads[6], &quads[7]]),
+                Node::new_branch([&quads[4], &quads[5], &quads[7], &quads[8]]),
+            ];
             if generations + 2 >= node.level as i32 {
-                nw = self.step_node(&nw, generations);
-                ne = self.step_node(&ne, generations);
-                sw = self.step_node(&sw, generations);
-                se = self.step_node(&se, generations);
+                children = children.map(|c| self.step_node(&c, generations));
             } else {
-                nw = nw.get_pseudo_child(0, 0);
-                ne = ne.get_pseudo_child(0, 0);
-                sw = sw.get_pseudo_child(0, 0);
-                se = se.get_pseudo_child(0, 0);
+                children = children.map(|c| c.get_pseudo_child(0, 0));
             }
-
-            Node::new_branch(
-                &Rc::new(RefCell::new(nw)),
-                &Rc::new(RefCell::new(ne)),
-                &Rc::new(RefCell::new(sw)),
-                &Rc::new(RefCell::new(se)),
-            )
+            Node::new_branch(children.map(|c| Rc::new(RefCell::new(c))).each_ref())
         };
 
         self.cache
