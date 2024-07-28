@@ -23,6 +23,31 @@ impl NodeKind {
     pub fn new_branch(children: [&Rc<RefCell<Node>>; 4]) -> Self {
         Self::Branch(children.map(Rc::clone))
     }
+
+    pub fn as_leaf(&self) -> &Leaf {
+        match self {
+            Self::Leaf(v) => v,
+            _ => panic!(),
+        }
+    }
+    pub fn as_leaf_mut(&mut self) -> &mut Leaf {
+        match self {
+            Self::Leaf(v) => v,
+            _ => panic!(),
+        }
+    }
+    pub fn as_branch(&self) -> &[Rc<RefCell<Node>>; 4] {
+        match self {
+            Self::Branch(children) => children,
+            _ => panic!(),
+        }
+    }
+    pub fn as_branch_mut(&mut self) -> &mut [Rc<RefCell<Node>>; 4] {
+        match self {
+            Self::Branch(children) => children,
+            _ => panic!(),
+        }
+    }
 }
 
 impl From<Leaf> for NodeKind {
@@ -64,7 +89,7 @@ impl Node {
             panic!();
         }
 
-        if let NodeKind::Leaf(_) = self.node {
+        if self.is_leaf() {
             // this feels stupid
             self.node = NodeKind::new_branch([
                 &Rc::new(RefCell::new(Node::new(self.level - 1))),
@@ -72,19 +97,6 @@ impl Node {
                 &Rc::new(RefCell::new(Node::new(self.level - 1))),
                 &Rc::new(RefCell::new(Node::new(self.level - 1))),
             ]);
-        }
-    }
-
-    pub fn child(&self, i: usize) -> &Rc<RefCell<Self>> {
-        match &self.node {
-            NodeKind::Branch(children) => &children[i],
-            _ => panic!(),
-        }
-    }
-    pub fn child_mut(&mut self, i: usize) -> &mut Rc<RefCell<Self>> {
-        match &mut self.node {
-            NodeKind::Branch(children) => &mut children[i],
-            _ => panic!(),
         }
     }
 
@@ -124,10 +136,7 @@ impl Node {
         }
 
         if self.level == LEAF_LEVEL {
-            let v = match &self.node {
-                NodeKind::Leaf(v) => v,
-                _ => panic!(),
-            };
+            let v = self.node.as_leaf();
             return v[(y + half) as usize][(x + half) as usize];
         }
 
@@ -232,11 +241,7 @@ impl Node {
 
             self.subdivide();
         }
-        let (nw, ne, sw, se) = match &mut self.node {
-            NodeKind::Branch([nw, ne, sw, se]) => (nw, ne, sw, se),
-            _ => panic!(),
-        };
-
+        let [nw, ne, sw, se] = self.node.as_branch_mut();
         let q = 1 << (self.level - 2);
         let mut d = 0;
 
@@ -261,9 +266,12 @@ impl Node {
         matches!(self.node, NodeKind::Leaf(_))
     }
 
-    pub fn get_pseudo_child(&self, x: i32, y: i32) -> Self {
-        if self.level <= LEAF_LEVEL {
+    pub fn get_pseudo_child(&self, dx: i32, dy: i32) -> Self {
+        if self.level < LEAF_LEVEL + 1 {
             panic!();
+        }
+        if self.is_leaf() {
+            return Self::new(self.level - 1);
         }
 
         let mut new_node = Self::new(self.level - 1);
@@ -271,44 +279,31 @@ impl Node {
             new_node.subdivide();
         }
 
-        for yy in [-1, 1] {
-            for xx in [-1, 1] {
-                let child = self
-                    .get_child(if x == 0 { xx } else { x }, if y == 0 { yy } else { y })
-                    .borrow();
+        for y in -1..1i32 {
+            for x in -1..1i32 {
+                let (mut yy, mut xx) = (y + dy, x + dx);
 
+                let child = self.get_child(xx, yy).borrow();
+                (yy, xx) = (yy.rem_euclid(2) - 1, xx.rem_euclid(2) - 1);
                 if child.level == LEAF_LEVEL {
-                    let v = match child.node {
-                        NodeKind::Leaf(v) => v,
-                        _ => panic!(),
-                    };
-                    // HACK:
-                    let (i, j) = ((yy - 1) / 2, (xx - 1) / 2);
-                    let (ii, jj) = (
-                        (if y == 0 { -yy } else { yy } + 1) / 2,
-                        (if x == 0 { -xx } else { xx } + 1) / 2,
-                    );
-                    new_node.insert(j, i, v[ii as usize][jj as usize]);
-                } else if child.is_leaf() {
-                    *new_node.get_child_mut(xx, yy) =
-                        Rc::new(RefCell::new(Node::new(self.level - 2)));
-                } else {
-                    let child = child
-                        .get_child(if x == 0 { -xx } else { xx }, if y == 0 { -yy } else { yy });
-                    *new_node.get_child_mut(xx, yy) = Rc::clone(child);
+                    new_node.insert(x, y, child.get(xx, yy));
+                } else if !child.is_leaf() {
+                    let grandchild = child.get_child(xx, yy);
+                    *new_node.get_child_mut(x, y) = Rc::clone(grandchild);
+
                     new_node
                         .population
-                        .set(new_node.population.get() + child.borrow().population.get());
-                };
+                        .update(|p| p + grandchild.borrow().population.get());
+                }
             }
         }
 
         new_node
     }
 
-    pub fn grown(&self) -> Node {
+    pub fn grown(&self) -> Self {
         if self.population.get() == 0 {
-            return Node::new(self.level + 1);
+            return Self::new(self.level + 1);
         }
 
         let mut new_node = Self::new(self.level + 1);
@@ -316,10 +311,10 @@ impl Node {
         new_node.population.set(self.population.get());
 
         for i in 0..4 {
-            let child = self.child(i);
-            let new_child = new_node.child(i);
+            let child = &self.node.as_branch()[i];
+            let new_child = &new_node.node.as_branch()[i];
             new_child.borrow_mut().subdivide();
-            *new_child.borrow_mut().child_mut(3 - i) = Rc::clone(child);
+            new_child.borrow_mut().node.as_branch_mut()[3 - i] = Rc::clone(child);
             new_child
                 .borrow_mut()
                 .population
@@ -356,7 +351,7 @@ impl Node {
         self.memo_hash.get().unwrap()
     }
 
-    pub fn deep_clone(&self) -> Node {
+    pub fn deep_clone(&self) -> Self {
         let mut new_node = Self::new(self.level);
         new_node.population.set(self.population.get());
 
