@@ -4,9 +4,11 @@ use rustc_hash::FxHashMap;
 
 use crate::quadtree::{Node, LEAF_LEVEL};
 
+type Key = (u64, i32); // (node hash, generations)
+
 #[derive(Clone)]
 pub struct Universe {
-    pub cache: RefCell<FxHashMap<(u64, i32), Node>>,
+    pub cache: RefCell<FxHashMap<Key, Rc<RefCell<Node>>>>,
     pub root: Rc<RefCell<Node>>,
     pub generation: u64,
 }
@@ -36,20 +38,21 @@ impl Universe {
     }
 
     pub fn step(&mut self, generations: i32) {
-        let next = self.step_node(&self.root.borrow().grown(), generations);
+        let generations = generations.min(self.root.borrow().level as i32 - 2);
         self.generation += (1 << generations) as u64;
-        self.root = Rc::new(RefCell::new(next));
+        let next = self.step_node(&self.root.borrow().grown(), generations);
+        self.root = next;
     }
 
-    fn step_node(&self, node: &Node, generations: i32) -> Node {
+    fn step_node(&self, node: &Node, generations: i32) -> Rc<RefCell<Node>> {
         let generations = generations.min(node.level as i32 - 2);
         let node_hash = node.get_hash(self.cache.borrow().hasher());
 
         if node.population.get() < 3 {
-            return Node::new(node.level - 1);
+            return Rc::new(RefCell::new(Node::new(node.level - 1)));
         }
         if let Some(n) = self.cache.borrow().get(&(node_hash, generations)) {
-            return n.clone();
+            return Rc::clone(n);
         }
 
         let new_node = if node.level == LEAF_LEVEL + 1 {
@@ -71,9 +74,7 @@ impl Universe {
             for y in -1..=1 {
                 for x in -1..=1 {
                     let pseudo_child = node.get_pseudo_child(x, y);
-                    quads.push(Rc::new(RefCell::new(
-                        self.step_node(&pseudo_child, generations),
-                    )));
+                    quads.push(self.step_node(&pseudo_child, generations));
                 }
             }
 
@@ -82,18 +83,22 @@ impl Universe {
                 Node::new_branch([&quads[1], &quads[2], &quads[4], &quads[5]]),
                 Node::new_branch([&quads[3], &quads[4], &quads[6], &quads[7]]),
                 Node::new_branch([&quads[4], &quads[5], &quads[7], &quads[8]]),
-            ];
+            ]
+            .map(|c| Rc::new(RefCell::new(c)));
+
             if generations + 2 >= node.level as i32 {
-                children = children.map(|c| self.step_node(&c, generations));
+                children = children.map(|c| self.step_node(&c.borrow(), generations));
             } else {
-                children = children.map(|c| c.get_pseudo_child(0, 0));
+                children =
+                    children.map(|c| Rc::new(RefCell::new(c.borrow().get_pseudo_child(0, 0))));
             }
-            Node::new_branch(children.map(|c| Rc::new(RefCell::new(c))).each_ref())
+            Node::new_branch(children.each_ref())
         };
+        let new_node = Rc::new(RefCell::new(new_node));
 
         self.cache
             .borrow_mut()
-            .insert((node_hash, generations), new_node.clone());
+            .insert((node_hash, generations), Rc::clone(&new_node));
 
         new_node
     }

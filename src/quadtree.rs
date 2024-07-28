@@ -146,13 +146,12 @@ impl Node {
             NodeKind::Branch(_) => self.get_child(x, y).borrow().get(cx, cy),
         }
     }
-
     pub fn insert(&mut self, x: i32, y: i32, value: u8) -> i32 {
         self.memo_hash.take(); // invalidate hash
 
         if let NodeKind::Leaf(v) = &mut self.node {
             if self.level == LEAF_LEVEL {
-                let half = 1 << (self.level - 1);
+                let half = 1 << (LEAF_LEVEL - 1);
                 let (i, j) = ((y + half) as usize, (x + half) as usize);
                 let d = value as i32 - v[i][j] as i32;
                 self.population.set(self.population.get() + d);
@@ -245,15 +244,6 @@ impl Node {
         let q = 1 << (self.level - 2);
         let mut d = 0;
 
-        let cloned = nw.borrow().clone();
-        *nw = Rc::new(RefCell::new(cloned));
-        let cloned = ne.borrow().clone();
-        *ne = Rc::new(RefCell::new(cloned));
-        let cloned = sw.borrow().clone();
-        *sw = Rc::new(RefCell::new(cloned));
-        let cloned = se.borrow().clone();
-        *se = Rc::new(RefCell::new(cloned));
-
         d += nw.borrow_mut()._set_rect(x + q, y + q, grid);
         d += ne.borrow_mut()._set_rect(x - q, y + q, grid);
         d += sw.borrow_mut()._set_rect(x + q, y - q, grid);
@@ -264,6 +254,9 @@ impl Node {
 
     pub fn is_leaf(&self) -> bool {
         matches!(self.node, NodeKind::Leaf(_))
+    }
+    pub fn is_branch(&self) -> bool {
+        matches!(self.node, NodeKind::Branch(_))
     }
 
     pub fn get_pseudo_child(&self, dx: i32, dy: i32) -> Self {
@@ -287,7 +280,7 @@ impl Node {
                 (yy, xx) = (yy.rem_euclid(2) - 1, xx.rem_euclid(2) - 1);
                 if child.level == LEAF_LEVEL {
                     new_node.insert(x, y, child.get(xx, yy));
-                } else if !child.is_leaf() {
+                } else if child.is_branch() {
                     let grandchild = child.get_child(xx, yy);
                     *new_node.get_child_mut(x, y) = Rc::clone(grandchild);
 
