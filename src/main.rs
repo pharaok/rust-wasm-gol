@@ -4,8 +4,6 @@ use leptos::*;
 
 mod button;
 mod canvas;
-mod icons;
-mod patterns;
 mod quadtree;
 mod universe;
 

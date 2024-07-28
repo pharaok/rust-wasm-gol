@@ -1,17 +1,16 @@
 use std::{cell::RefCell, rc::Rc, time::Duration};
 
+use crate::{
+    button::Button,
+    quadtree::{self, Node, NodeKind},
+    universe::Universe,
+};
 use leptos::{logging::log, *};
+use leptos_icons::Icon;
 use leptos_use::{use_raf_fn, utils::Pausable};
 use web_sys::{
     wasm_bindgen::{JsCast, JsValue},
     CanvasRenderingContext2d,
-};
-
-use crate::{
-    button::Button,
-    icons::*,
-    quadtree::{self, Node, NodeKind},
-    universe::Universe,
 };
 
 fn draw_node(ctx: &CanvasRenderingContext2d, node: &Node, o_x: f64, o_y: f64, cell_size: f64) {
@@ -332,12 +331,12 @@ pub fn Canvas() -> impl IntoView {
                         <Button on_press=move || {
                             set_step.update(|s| *s = (*s - 1).max(-1));
                         }>
-                            <Rewind/>
+                            <Icon icon=icondata::LuRewind/>
                         </Button>
                         <Button on_press=move || {
                             set_step.update(|s| *s = (*s + 1).min(root().borrow().level as i32));
                         }>
-                            <FastForward/>
+                            <Icon icon=icondata::LuFastForward/>
                         </Button>
 
                         <div class="h-8 bg-gray-300 w-px"></div>
@@ -358,22 +357,22 @@ pub fn Canvas() -> impl IntoView {
                             }
                         >
 
-                            <StepBack/>
+                            <Icon icon=icondata::LuStepBack/>
                         </Button>
                         <Button on_press=move || {
                             set_is_ticking.update(|s| *s = !*s)
                         }>
                             {move || {
                                 if is_ticking() {
-                                    view! { <Pause/> }
+                                    view! { <Icon icon=icondata::LuPause/> }
                                 } else {
-                                    view! { <Play/> }
+                                    view! { <Icon icon=icondata::LuPlay/> }
                                 }
                             }}
 
                         </Button>
                         <Button on_press=step_root>
-                            <StepForward/>
+                            <Icon icon=icondata::LuStepForward/>
                         </Button>
                     </div>
 
