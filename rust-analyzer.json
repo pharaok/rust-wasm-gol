@@ -1,5 +1,5 @@
 {
-  "rustfmt": {
+  "rust-analyzer.rustfmt": {
       "overrideCommand": ["leptosfmt", "--stdin", "--rustfmt"]
   } 
 }
