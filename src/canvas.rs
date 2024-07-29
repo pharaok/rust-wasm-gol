@@ -29,12 +29,16 @@ fn draw_node(gol_canvas: &GolCanvas, node: &Node, top: f64, left: f64) {
             for (i, row) in leaf.iter().enumerate() {
                 for (j, cell) in row.iter().enumerate() {
                     if *cell != 0 {
-                        gol_canvas.ctx.fill_rect(
-                            (left + j as f64) * cell_size,
-                            (top + i as f64) * cell_size,
-                            cell_size,
-                            cell_size,
+                        let (x, y) = (
+                            ((left + j as f64) * cell_size).round(),
+                            ((top + i as f64) * cell_size).round(),
                         );
+                        // sharp edges without gaps between cells
+                        let (actual_width, actual_height) = (
+                            ((left + j as f64 + 1.0) * cell_size - x).round(),
+                            ((top + i as f64 + 1.0) * cell_size - y).round(),
+                        );
+                        gol_canvas.ctx.fill_rect(x, y, actual_width, actual_height);
                     }
                 }
             }
@@ -66,6 +70,12 @@ impl GolCanvas {
             self.ox + (offset_x / self.cell_size),
             self.oy + (offset_y / self.cell_size),
         )
+    }
+    pub fn zoom_at(&mut self, factor: f64, x: f64, y: f64) {
+        self.cell_size *= factor;
+        let f = 1.0 - 1.0 / factor;
+        self.ox += (x - self.ox) * f;
+        self.oy += (y - self.oy) * f;
     }
 }
 
@@ -180,6 +190,18 @@ pub fn Canvas() -> impl IntoView {
                 if ev.button() == 1 {
                     pan.set_value(None);
                 }
+            }
+
+            on:wheel=move |ev| {
+                let (x, y) = gol_canvas
+                    .with_value(|gc| {
+                        gc.as_ref().unwrap().to_grid(ev.offset_x() as f64, ev.offset_y() as f64)
+                    });
+                let factor = 1.0 - (ev.delta_y() / 1000.0);
+                gol_canvas
+                    .update_value(|gc| {
+                        gc.as_mut().unwrap().zoom_at(factor, x, y);
+                    })
             }
         >
         </canvas>
