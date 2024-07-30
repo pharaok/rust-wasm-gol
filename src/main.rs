@@ -1,9 +1,10 @@
 #![feature(cell_update)]
-use canvas::Canvas;
 use leptos::*;
 
-mod button;
-mod canvas;
+use crate::components::Canvas;
+
+mod components;
+mod draw;
 mod quadtree;
 mod universe;
 
