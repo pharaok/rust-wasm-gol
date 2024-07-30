@@ -1,14 +1,12 @@
-use std::{cell::RefCell, rc::Rc};
-
-use rustc_hash::FxHashMap;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::quadtree::{Node, LEAF_LEVEL};
 
-type Key = (u64, i32); // (node hash, generations)
+type Key = (u64, i32, usize); // (node hash, generations, level)
 
 #[derive(Clone)]
 pub struct Universe {
-    pub cache: RefCell<FxHashMap<Key, Rc<RefCell<Node>>>>,
+    pub cache: RefCell<HashMap<Key, Rc<RefCell<Node>>>>,
     pub root: Rc<RefCell<Node>>,
     pub generation: u64,
 }
@@ -16,7 +14,9 @@ pub struct Universe {
 impl Universe {
     pub fn new() -> Self {
         Self {
-            cache: RefCell::new(FxHashMap::default()),
+            // BUG: Looks like the FxHashMap hasher causes a collision
+            // on generation 1362 of acorn with step=0 and (0,0) as the lone cell
+            cache: RefCell::new(HashMap::new()),
             root: Rc::new(RefCell::new(Node::new(16))),
             generation: 0,
         }
@@ -39,8 +39,8 @@ impl Universe {
 
     pub fn step(&mut self, generations: i32) {
         let generations = generations.min(self.root.borrow().level as i32 - 2);
-        self.generation += (1 << generations) as u64;
         let next = self.step_node(&self.root.borrow().grown(), generations);
+        self.generation += (1 << generations) as u64;
         self.root = next;
     }
 
@@ -51,7 +51,8 @@ impl Universe {
         if node.population.get() < 3 {
             return Rc::new(RefCell::new(Node::new(node.level - 1)));
         }
-        if let Some(n) = self.cache.borrow().get(&(node_hash, generations)) {
+        let key = (node_hash, generations, node.level);
+        if let Some(n) = self.cache.borrow().get(&key) {
             return Rc::clone(n);
         }
 
@@ -96,9 +97,7 @@ impl Universe {
         };
         let new_node = Rc::new(RefCell::new(new_node));
 
-        self.cache
-            .borrow_mut()
-            .insert((node_hash, generations), Rc::clone(&new_node));
+        self.cache.borrow_mut().insert(key, Rc::clone(&new_node));
 
         new_node
     }
