@@ -2,7 +2,11 @@
 module.exports = {
   content: ["./index.html", "./src/**/*.rs"],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        mono: ["Roboto One", "monospace"],
+      },
+    },
   },
   plugins: [],
 };

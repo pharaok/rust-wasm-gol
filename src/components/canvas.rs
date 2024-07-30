@@ -6,7 +6,17 @@ use web_sys::{
     CanvasRenderingContext2d,
 };
 
-use crate::{draw::GolCanvas, universe::Universe};
+use crate::{components::Status, draw::GolCanvas, universe::Universe};
+
+#[derive(Clone)]
+pub struct GolContext {
+    pub universe: ReadSignal<Universe>,
+    pub set_universe: WriteSignal<Universe>,
+    pub cursor: ReadSignal<(f64, f64)>,
+    pub set_cursor: WriteSignal<(f64, f64)>,
+    pub step: ReadSignal<i32>,
+    pub set_step: WriteSignal<i32>,
+}
 
 #[component]
 pub fn Canvas() -> impl IntoView {
@@ -19,13 +29,25 @@ pub fn Canvas() -> impl IntoView {
     let pan = store_value::<Option<(f64, f64)>>(None);
 
     let (universe, set_universe) = create_signal(Universe::new()); // WARN: expensive to clone
+    let (step, set_step) = create_signal(0);
+    let (cursor, set_cursor) = create_signal((0.0, 0.0));
+    provide_context(GolContext {
+        universe,
+        set_universe,
+        cursor,
+        set_cursor,
+        step,
+        set_step,
+    });
 
     create_effect(move |_| {
+        let canvas = canvas_ref().unwrap();
+        canvas.set_width(div_ref().unwrap().client_width() as u32);
+        canvas.set_height(div_ref().unwrap().client_height() as u32);
         let options = js_sys::Object::new();
         js_sys::Reflect::set(&options, &"alpha".into(), &false.into()).unwrap();
 
-        let ctx = canvas_ref()
-            .unwrap()
+        let ctx = canvas
             .get_context_with_context_options("2d", &options)
             .unwrap()
             .unwrap()
@@ -73,7 +95,7 @@ pub fn Canvas() -> impl IntoView {
     });
 
     view! {
-        <div _ref=div_ref class="absolute overflow-hidden w-full h-full">
+        <div _ref=div_ref class="absolute overflow-hidden w-full h-full bg-black">
             <canvas
                 _ref=canvas_ref
                 tabindex=0
@@ -106,6 +128,8 @@ pub fn Canvas() -> impl IntoView {
                                 gc.ox += px - x;
                                 gc.oy += py - y;
                             })
+                    } else {
+                        set_cursor((x, y));
                     }
                 }
 
@@ -128,12 +152,15 @@ pub fn Canvas() -> impl IntoView {
                     if ev.key().as_str() == " " {
                         set_universe
                             .update(|u| {
-                                u.step(0);
+                                u.step(step());
                             });
                     }
                 }
             >
             </canvas>
+            <div class="absolute bottom-0 right-0">
+                <Status/>
+            </div>
         </div>
     }
 }
