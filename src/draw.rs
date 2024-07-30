@@ -27,6 +27,11 @@ impl GolCanvas {
         self.ox += (x - self.ox) * f;
         self.oy += (y - self.oy) * f;
     }
+    pub fn clear(&self) {
+        let canvas = self.ctx.canvas().unwrap();
+        self.ctx
+            .clear_rect(0.0, 0.0, canvas.width() as f64, canvas.height() as f64);
+    }
     pub fn draw_node(&self, node: &Node, top: f64, left: f64) {
         if node.population.get() == 0 {
             return;
