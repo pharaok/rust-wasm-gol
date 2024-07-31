@@ -493,6 +493,7 @@ dependencies = [
  "leptos",
  "leptos-use",
  "leptos_icons",
+ "regex",
  "rustc-hash",
  "web-sys",
 ]

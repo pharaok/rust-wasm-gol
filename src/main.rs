@@ -4,6 +4,7 @@ use leptos::*;
 
 mod button;
 mod canvas;
+mod parse;
 mod quadtree;
 mod universe;
 
