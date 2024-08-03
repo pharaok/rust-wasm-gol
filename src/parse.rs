@@ -1,13 +1,11 @@
-use leptos::logging::log;
-use regex::Regex;
+pub mod rle {
+    use leptos::logging::log;
+    use regex::Regex;
 
-use crate::quadtree::Node;
-
-impl Node {
-    pub fn rle_to_rect(rle: &str) -> Vec<Vec<u8>> {
+    pub fn to_rect(rle: &str) -> Vec<Vec<u8>> {
         let section_re = Regex::new(r"(?m)^#([a-zA-Z])(.*)$").unwrap();
         let header_re = Regex::new(
-            r"(?m)^x\s*=\s*(\d+)\s*,?\s*y\s*=\s*(\d+)\s*(?:,\s*rule\s*=\s*(B\d*\/S\d*)\s*)?$",
+            r"(?m)^\s*x\s*=\s*(\d+)\s*,?\s*y\s*=\s*(\d+)\s*(?:,\s*rule\s*=\s*(B\d*\/S\d*)\s*)?$",
         )
         .unwrap();
         let rle_re = Regex::new(r"\s*(?:([\$\!])|(\d+)?([a-zA-Z]))").unwrap();
@@ -59,5 +57,48 @@ impl Node {
         }
 
         grid
+    }
+
+    fn item(count: usize, value: u8) -> String {
+        let count_str = if count > 1 {
+            count.to_string()
+        } else {
+            "".to_string()
+        };
+
+        format!("{}{}", count_str, if value == 0 { 'b' } else { 'o' })
+    }
+    pub fn from_rect(grid: &Vec<Vec<u8>>) -> String {
+        let mut rle = format!("x = {}, y = {}\n", grid[0].len(), grid.len());
+        let mut line_len = 0;
+        let mut push_item = |item: &str| {
+            line_len += item.len();
+            if line_len > 70 {
+                rle.push('\n');
+                line_len = 0;
+            }
+            rle.push_str(item);
+        };
+
+        let mut count = 0;
+        for row in grid {
+            let mut prev = row[0];
+            for cell in row {
+                if *cell != prev {
+                    push_item(&item(count, prev));
+                    prev = *cell;
+                    count = 0;
+                }
+                count += 1;
+            }
+            if prev != 0 {
+                push_item(&item(count, prev));
+            }
+            push_item("$");
+            count = 0;
+        }
+        rle.pop();
+        rle.push('!');
+        rle
     }
 }
