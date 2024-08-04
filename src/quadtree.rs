@@ -60,7 +60,7 @@ impl From<Leaf> for NodeKind {
 pub struct Node {
     pub node: NodeKind,
     pub level: usize,
-    pub population: Cell<i32>,
+    pub population: i32,
     pub memo_hash: Cell<Option<u64>>,
 }
 
@@ -69,17 +69,17 @@ impl Node {
         Self {
             node: NodeKind::new_leaf(),
             level,
-            population: Cell::new(0),
+            population: 0,
             memo_hash: Cell::new(None),
         }
     }
     pub fn new_branch(children: [&Rc<RefCell<Node>>; 4]) -> Self {
         let level = children[0].borrow().level + 1;
-        let population = children.map(|c| c.borrow().population.get()).iter().sum();
+        let population = children.map(|c| c.borrow().population).iter().sum();
         Self {
             node: NodeKind::new_branch(children),
             level,
-            population: Cell::new(population),
+            population,
             memo_hash: Cell::new(None),
         }
     }
@@ -154,7 +154,7 @@ impl Node {
                 let half = 1 << (LEAF_LEVEL - 1);
                 let (i, j) = ((y + half) as usize, (x + half) as usize);
                 let d = value as i32 - v[i][j] as i32;
-                self.population.set(self.population.get() + d);
+                self.population += d;
 
                 v[i][j] = value;
                 return d;
@@ -164,7 +164,7 @@ impl Node {
 
         let (cx, cy) = self.to_child_coords(x, y);
         let d = self.get_child(x, y).borrow_mut().insert(cx, cy, value);
-        self.population.set(self.population.get() + d);
+        self.population += d;
         d
     }
 
@@ -181,7 +181,7 @@ impl Node {
     }
     fn _get_rect(&self, x1: i32, y1: i32, x2: i32, y2: i32, grid: &mut Vec<Vec<u8>>) {
         let half = 1 << (self.level - 1);
-        if x1 >= half || y1 >= half || x2 < -half || y2 < -half || self.population.get() == 0 {
+        if x1 >= half || y1 >= half || x2 < -half || y2 < -half || self.population == 0 {
             return;
         }
         let (w, h) = ((x2 - x1) as usize, (y2 - y1) as usize);
@@ -234,7 +234,7 @@ impl Node {
                         }
                     }
                 }
-                self.population.set(self.population.get() + d);
+                self.population += d;
                 return d;
             }
 
@@ -248,7 +248,7 @@ impl Node {
         d += ne.borrow_mut()._set_rect(x - q, y + q, grid);
         d += sw.borrow_mut()._set_rect(x + q, y - q, grid);
         d += se.borrow_mut()._set_rect(x - q, y - q, grid);
-        self.population.set(self.population.get() + d);
+        self.population += d;
         d
     }
 
@@ -284,9 +284,7 @@ impl Node {
                     let grandchild = child.get_child(xx, yy);
                     *new_node.get_child_mut(x, y) = Rc::clone(grandchild);
 
-                    new_node
-                        .population
-                        .update(|p| p + grandchild.borrow().population.get());
+                    new_node.population += grandchild.borrow().population
                 }
             }
         }
@@ -295,23 +293,20 @@ impl Node {
     }
 
     pub fn grown(&self) -> Self {
-        if self.population.get() == 0 {
+        if self.population == 0 {
             return Self::new(self.level + 1);
         }
 
         let mut new_node = Self::new(self.level + 1);
         new_node.subdivide();
-        new_node.population.set(self.population.get());
+        new_node.population = self.population;
 
         for i in 0..4 {
             let child = &self.node.as_branch()[i];
             let new_child = &new_node.node.as_branch()[i];
             new_child.borrow_mut().subdivide();
             new_child.borrow_mut().node.as_branch_mut()[3 - i] = Rc::clone(child);
-            new_child
-                .borrow_mut()
-                .population
-                .set(child.borrow().population.get());
+            new_child.borrow_mut().population = child.borrow().population;
         }
 
         new_node.level = self.level + 1;
@@ -322,7 +317,7 @@ impl Node {
         let mut state = hasher.build_hasher();
 
         if self.memo_hash.get().is_none() {
-            if self.population.get() == 0 {
+            if self.population == 0 {
                 self.level.hash(&mut state);
             } else {
                 match &self.node {
@@ -346,7 +341,7 @@ impl Node {
 
     pub fn deep_clone(&self) -> Self {
         let mut new_node = Self::new(self.level);
-        new_node.population.set(self.population.get());
+        new_node.population = self.population;
 
         new_node.node = match &self.node {
             NodeKind::Leaf(v) => NodeKind::Leaf(*v),

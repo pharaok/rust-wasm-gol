@@ -49,7 +49,7 @@ impl GolCanvas {
             .clear_rect(0.0, 0.0, canvas.width() as f64, canvas.height() as f64);
     }
     pub fn draw_node(&self, node: &Node, top: f64, left: f64) {
-        if node.population.get() == 0 {
+        if node.population == 0 {
             return;
         }
 

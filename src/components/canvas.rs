@@ -18,8 +18,6 @@ pub struct GolContext {
     pub set_universe: WriteSignal<Universe>,
     pub cursor: ReadSignal<(f64, f64)>,
     pub set_cursor: WriteSignal<(f64, f64)>,
-    pub step: ReadSignal<i32>,
-    pub set_step: WriteSignal<i32>,
     pub canvas: ReadSignal<Option<GolCanvas>>,
     pub set_canvas: WriteSignal<Option<GolCanvas>>,
     pub is_ticking: ReadSignal<bool>,
@@ -37,7 +35,6 @@ pub fn Canvas() -> impl IntoView {
     let pan = store_value::<Option<(f64, f64)>>(None);
 
     let (universe, set_universe) = create_signal(Universe::new()); // WARN: expensive to clone
-    let (step, set_step) = create_signal(0);
     let (cursor, set_cursor) = create_signal((0.0, 0.0));
     let tps = store_value(10.0);
     let (is_ticking, set_is_ticking) = create_signal(false);
@@ -46,8 +43,6 @@ pub fn Canvas() -> impl IntoView {
         set_universe,
         cursor,
         set_cursor,
-        step,
-        set_step,
         canvas: gol_canvas,
         set_canvas: set_gol_canvas,
         is_ticking,
@@ -90,7 +85,7 @@ pub fn Canvas() -> impl IntoView {
         let now = raf_args.timestamp;
         if is_ticking() && now - prev_tick() > 1000.0 / tps() {
             set_universe.update(|u| {
-                u.step(step());
+                u.step();
             });
             prev_tick.set_value(now);
         }

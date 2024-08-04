@@ -1,4 +1,4 @@
-use leptos::{logging::log, *};
+use leptos::*;
 
 use crate::components::{button::ButtonVariant, canvas::GolContext, Button, Divider, Icon};
 
@@ -7,8 +7,6 @@ pub fn Controls() -> impl IntoView {
     let GolContext {
         universe,
         set_universe,
-        step,
-        set_step,
         is_ticking,
         set_is_ticking,
         ..
@@ -18,8 +16,8 @@ pub fn Controls() -> impl IntoView {
         <div class="bg-white/5 rounded-lg pointer-events-auto flex overflow-hidden">
             <Button
                 variant=ButtonVariant::Icon
-                disabled=Signal::derive(move || step() <= 0)
-                on_press=move || { set_step.update(|s| { *s = (*s - 1).max(0) }) }
+                disabled=Signal::derive(move || universe.with(|u| u.step <= 0))
+                on_press=move || { set_universe.update(|u| { u.step = (u.step - 1).max(0) }) }
             >
                 <Icon icon=icondata::LuRewind/>
             </Button>
@@ -54,7 +52,7 @@ pub fn Controls() -> impl IntoView {
             <Divider/>
             <Button
                 variant=ButtonVariant::Icon
-                on_press=move || { set_universe.update(|u| { u.step(step()) }) }
+                on_press=move || { set_universe.update(|u| { u.step() }) }
             >
                 <Icon icon=icondata::LuStepForward/>
             </Button>
@@ -62,14 +60,12 @@ pub fn Controls() -> impl IntoView {
             <Button
                 variant=ButtonVariant::Icon
                 disabled=Signal::derive(move || {
-                    step() >= universe.with(|u| u.root.borrow().level as i32 - 2)
+                    universe.with(|u| u.step >= u.root.borrow().level as i32 - 2)
                 })
 
                 on_press=move || {
-                    set_step
-                        .update(|s| {
-                            *s = (*s + 1).min(universe.with(|u| u.root.borrow().level as i32 - 2))
-                        })
+                    set_universe
+                        .update(|u| { u.step = (u.step + 1).min(u.root.borrow().level as i32 - 2) })
                 }
             >
 

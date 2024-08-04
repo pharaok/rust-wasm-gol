@@ -9,6 +9,7 @@ pub struct Universe {
     pub cache: RefCell<HashMap<Key, Rc<RefCell<Node>>>>,
     pub root: Rc<RefCell<Node>>,
     pub generation: u64,
+    pub step: i32,
 }
 
 impl Universe {
@@ -19,6 +20,7 @@ impl Universe {
             cache: RefCell::new(HashMap::new()),
             root: Rc::new(RefCell::new(Node::new(16))),
             generation: 0,
+            step: 0,
         }
     }
 
@@ -37,21 +39,21 @@ impl Universe {
         count
     }
 
-    pub fn step(&mut self, generations: i32) {
-        let generations = generations.min(self.root.borrow().level as i32 - 2);
-        let next = self.step_node(&self.root.borrow().grown(), generations);
-        self.generation += (1 << generations) as u64;
+    pub fn step(&mut self) {
+        let step = self.step.min(self.root.borrow().level as i32 - 2);
+        let next = self.step_node(&self.root.borrow().grown());
+        self.generation += (1 << step) as u64;
         self.root = next;
     }
 
-    fn step_node(&self, node: &Node, generations: i32) -> Rc<RefCell<Node>> {
-        let generations = generations.min(node.level as i32 - 2);
+    fn step_node(&self, node: &Node) -> Rc<RefCell<Node>> {
+        let step = self.step.min(node.level as i32 - 2);
         let node_hash = node.get_hash(self.cache.borrow().hasher());
 
-        if node.population.get() < 3 {
+        if node.population < 3 {
             return Rc::new(RefCell::new(Node::new(node.level - 1)));
         }
-        let key = (node_hash, generations, node.level);
+        let key = (node_hash, step, node.level);
         if let Some(n) = self.cache.borrow().get(&key) {
             return Rc::clone(n);
         }
@@ -75,7 +77,7 @@ impl Universe {
             for y in -1..=1 {
                 for x in -1..=1 {
                     let pseudo_child = node.get_pseudo_child(x, y);
-                    quads.push(self.step_node(&pseudo_child, generations));
+                    quads.push(self.step_node(&pseudo_child));
                 }
             }
 
@@ -87,8 +89,8 @@ impl Universe {
             ]
             .map(|c| Rc::new(RefCell::new(c)));
 
-            if generations + 2 >= node.level as i32 {
-                children = children.map(|c| self.step_node(&c.borrow(), generations));
+            if step + 2 >= node.level as i32 {
+                children = children.map(|c| self.step_node(&c.borrow()));
             } else {
                 children =
                     children.map(|c| Rc::new(RefCell::new(c.borrow().get_pseudo_child(0, 0))));

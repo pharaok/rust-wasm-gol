@@ -31,7 +31,6 @@ pub fn Status() -> impl IntoView {
     let GolContext {
         universe,
         cursor,
-        step,
         canvas,
         set_canvas,
         ..
@@ -40,13 +39,11 @@ pub fn Status() -> impl IntoView {
 
     view! {
         <div class="text-white flex justify-end font-mono relative text-sm">
-            <Item>{move || format!("Step: {}", 1 << step())}</Item>
+            <Item>{move || format!("Step: {}", 1 << universe.with(|u| u.step))}</Item>
             <Divider/>
             <Item>{move || format!("Gen: {}", universe.with(|u| u.generation))}</Item>
             <Divider/>
-            <Item>
-                {move || format!("Pop: {}", universe.with(|u| u.root.borrow().population.get()))}
-            </Item>
+            <Item>{move || format!("Pop: {}", universe.with(|u| u.root.borrow().population))}</Item>
             <Divider/>
             <Item on_press=Box::new(move || {
                 set_canvas
