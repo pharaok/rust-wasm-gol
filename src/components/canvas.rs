@@ -6,7 +6,11 @@ use web_sys::{
     CanvasRenderingContext2d,
 };
 
-use crate::{components::Status, draw::GolCanvas, universe::Universe};
+use crate::{
+    components::{Controls, Status},
+    draw::GolCanvas,
+    universe::Universe,
+};
 
 #[derive(Clone)]
 pub struct GolContext {
@@ -18,6 +22,8 @@ pub struct GolContext {
     pub set_step: WriteSignal<i32>,
     pub canvas: ReadSignal<Option<GolCanvas>>,
     pub set_canvas: WriteSignal<Option<GolCanvas>>,
+    pub is_ticking: ReadSignal<bool>,
+    pub set_is_ticking: WriteSignal<bool>,
 }
 
 #[component]
@@ -33,6 +39,8 @@ pub fn Canvas() -> impl IntoView {
     let (universe, set_universe) = create_signal(Universe::new()); // WARN: expensive to clone
     let (step, set_step) = create_signal(0);
     let (cursor, set_cursor) = create_signal((0.0, 0.0));
+    let tps = store_value(10.0);
+    let (is_ticking, set_is_ticking) = create_signal(false);
     provide_context(GolContext {
         universe,
         set_universe,
@@ -42,6 +50,8 @@ pub fn Canvas() -> impl IntoView {
         set_step,
         canvas: gol_canvas,
         set_canvas: set_gol_canvas,
+        is_ticking,
+        set_is_ticking,
     });
 
     create_effect(move |_| {
@@ -75,14 +85,23 @@ pub fn Canvas() -> impl IntoView {
         debounced_resize((rect.width() as u32, rect.height() as u32));
     });
 
-    use_raf_fn(move |_raf_args| {
-        gol_canvas.with_untracked(|gc| {
+    let prev_tick = store_value(0.0);
+    use_raf_fn(move |raf_args| {
+        let now = raf_args.timestamp;
+        if is_ticking() && now - prev_tick() > 1000.0 / tps() {
+            set_universe.update(|u| {
+                u.step(step());
+            });
+            prev_tick.set_value(now);
+        }
+
+        gol_canvas.with(|gc| {
             let gc = gc.as_ref().unwrap();
             let ctx = &gc.ctx;
             gc.clear();
 
             ctx.set_fill_style(&JsValue::from_str("white"));
-            universe.with_untracked(|u| {
+            universe.with(|u| {
                 let root = u.root.borrow();
                 let half = (1 << (root.level - 1)) as f64;
                 gc.draw_node(&root, -half - gc.oy, -half - gc.ox);
@@ -137,7 +156,7 @@ pub fn Canvas() -> impl IntoView {
 
                 on:wheel=move |ev| {
                     let (x, y) = offset_to_grid(ev.offset_x(), ev.offset_y());
-                    let factor = 1.0 - (ev.delta_y() / 1000.0);
+                    let factor = std::f64::consts::E.powf(-ev.delta_y() / 1000.0);
                     set_gol_canvas
                         .update(|gc| {
                             gc.as_mut().unwrap().zoom_at(factor, x, y);
@@ -145,16 +164,19 @@ pub fn Canvas() -> impl IntoView {
                 }
 
                 on:keydown=move |ev| {
-                    if ev.key().as_str() == " " {
-                        set_universe
-                            .update(|u| {
-                                u.step(step());
-                            });
+                    match ev.key().as_str() {
+                        " " => {
+                            set_is_ticking.update(|b| *b = !*b);
+                        }
+                        _ => {}
                     }
                 }
             >
             </canvas>
-            <div class="absolute bottom-0 right-0">
+            <div class="z-10 absolute bottom-4 left-[50%] -translate-x-[50%]">
+                <Controls/>
+            </div>
+            <div class="absolute bottom-0 inset-x-0">
                 <Status/>
             </div>
         </div>

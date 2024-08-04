@@ -1,11 +1,6 @@
 use leptos::*;
 
-use crate::components::canvas::GolContext;
-
-#[component]
-pub fn Divider() -> impl IntoView {
-    view! { <div class="border-l-2 border-white/20"></div> }
-}
+use crate::components::{canvas::GolContext, Divider};
 
 #[component]
 pub fn Item(
@@ -44,12 +39,14 @@ pub fn Status() -> impl IntoView {
     let zoom = move || canvas.with(|gc| gc.as_ref().map(|gc| gc.zoom()).unwrap_or(1.0));
 
     view! {
-        <div class="text-white flex font-mono relative text-sm">
+        <div class="text-white flex justify-end font-mono relative text-sm">
             <Item>{move || format!("Step: {}", 1 << step())}</Item>
             <Divider/>
-            <Item>{move || format!("Gen: {}", universe().generation)}</Item>
+            <Item>{move || format!("Gen: {}", universe.with(|u| u.generation))}</Item>
             <Divider/>
-            <Item>{move || format!("Pop: {}", universe().root.borrow().population.get())}</Item>
+            <Item>
+                {move || format!("Pop: {}", universe.with(|u| u.root.borrow().population.get()))}
+            </Item>
             <Divider/>
             <Item on_press=Box::new(move || {
                 set_canvas
