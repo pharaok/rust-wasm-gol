@@ -16,15 +16,17 @@ pub struct GolContext {
     pub set_cursor: WriteSignal<(f64, f64)>,
     pub step: ReadSignal<i32>,
     pub set_step: WriteSignal<i32>,
+    pub canvas: ReadSignal<Option<GolCanvas>>,
+    pub set_canvas: WriteSignal<Option<GolCanvas>>,
 }
 
 #[component]
 pub fn Canvas() -> impl IntoView {
     let div_ref = create_node_ref::<html::Div>();
     let canvas_ref = create_node_ref::<html::Canvas>();
-    let gol_canvas = store_value::<Option<GolCanvas>>(None);
+    let (gol_canvas, set_gol_canvas) = create_signal::<Option<GolCanvas>>(None);
     let offset_to_grid = move |x: i32, y: i32| {
-        gol_canvas.with_value(|gc| gc.as_ref().unwrap().to_grid(x as f64, y as f64))
+        gol_canvas.with(|gc| gc.as_ref().unwrap().to_grid(x as f64, y as f64))
     };
     let pan = store_value::<Option<(f64, f64)>>(None);
 
@@ -38,6 +40,8 @@ pub fn Canvas() -> impl IntoView {
         set_cursor,
         step,
         set_step,
+        canvas: gol_canvas,
+        set_canvas: set_gol_canvas,
     });
 
     create_effect(move |_| {
@@ -54,16 +58,8 @@ pub fn Canvas() -> impl IntoView {
             .dyn_into::<CanvasRenderingContext2d>()
             .unwrap();
 
-        let mut gc = GolCanvas {
-            ctx,
-            ox: 0.0,
-            oy: 0.0,
-            cell_size: 20.0,
-        };
-        gc.ox = -gc.width() / 2.0;
-        gc.oy = -gc.height() / 2.0;
-
-        gol_canvas.set_value(Some(gc));
+        let gc = GolCanvas::new(ctx);
+        set_gol_canvas(Some(gc));
     });
 
     let debounced_resize = use_debounce_fn_with_arg(
@@ -80,7 +76,7 @@ pub fn Canvas() -> impl IntoView {
     });
 
     use_raf_fn(move |_raf_args| {
-        gol_canvas.with_value(|gc| {
+        gol_canvas.with_untracked(|gc| {
             let gc = gc.as_ref().unwrap();
             let ctx = &gc.ctx;
             gc.clear();
@@ -122,8 +118,8 @@ pub fn Canvas() -> impl IntoView {
                 on:mousemove=move |ev| {
                     let (x, y) = offset_to_grid(ev.offset_x(), ev.offset_y());
                     if let Some((px, py)) = pan() {
-                        gol_canvas
-                            .update_value(|gc| {
+                        set_gol_canvas
+                            .update(|gc| {
                                 let gc = gc.as_mut().unwrap();
                                 gc.ox += px - x;
                                 gc.oy += py - y;
@@ -142,8 +138,8 @@ pub fn Canvas() -> impl IntoView {
                 on:wheel=move |ev| {
                     let (x, y) = offset_to_grid(ev.offset_x(), ev.offset_y());
                     let factor = 1.0 - (ev.delta_y() / 1000.0);
-                    gol_canvas
-                        .update_value(|gc| {
+                    set_gol_canvas
+                        .update(|gc| {
                             gc.as_mut().unwrap().zoom_at(factor, x, y);
                         })
                 }

@@ -2,6 +2,8 @@ use web_sys::CanvasRenderingContext2d;
 
 use crate::quadtree::{Node, NodeKind};
 
+pub const DEFAULT_CELL_SIZE: f64 = 20.0;
+
 pub struct GolCanvas {
     pub ctx: CanvasRenderingContext2d,
     pub ox: f64,
@@ -9,11 +11,25 @@ pub struct GolCanvas {
     pub cell_size: f64,
 }
 impl GolCanvas {
+    pub fn new(ctx: CanvasRenderingContext2d) -> Self {
+        let mut gc = GolCanvas {
+            ctx,
+            ox: 0.0,
+            oy: 0.0,
+            cell_size: DEFAULT_CELL_SIZE,
+        };
+        gc.ox = -gc.width() / 2.0;
+        gc.oy = -gc.height() / 2.0;
+        gc
+    }
     pub fn width(&self) -> f64 {
         self.ctx.canvas().unwrap().width() as f64 / self.cell_size
     }
     pub fn height(&self) -> f64 {
         self.ctx.canvas().unwrap().height() as f64 / self.cell_size
+    }
+    pub fn zoom(&self) -> f64 {
+        self.cell_size / DEFAULT_CELL_SIZE
     }
     pub fn to_grid(&self, offset_x: f64, offset_y: f64) -> (f64, f64) {
         (
