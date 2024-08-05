@@ -8,7 +8,7 @@ pub mod rle {
             r"(?m)^\s*x\s*=\s*(\d+)\s*,?\s*y\s*=\s*(\d+)\s*(?:,\s*rule\s*=\s*(B\d*\/S\d*)\s*)?$",
         )
         .unwrap();
-        let rle_re = Regex::new(r"\s*(?:([\$\!])|(\d+)?([a-zA-Z]))").unwrap();
+        let item_re = Regex::new(r"\s*(\d*)([a-zA-Z\$\!])").unwrap();
 
         let mut rule = "23/3";
 
@@ -33,30 +33,27 @@ pub mod rle {
         let mut grid = vec![vec![0; w]; h];
         let mut i = 0;
         let mut j = 0;
-        while let Some(c) = rle_re.captures_at(rle, start) {
-            if let Some(end) = c.get(1).map(|m| m.as_str()) {
-                if end == "!" {
-                    break;
-                }
-                if end == "$" {
-                    i += 1;
+        while let Some(c) = item_re.captures_at(rle, start) {
+            let (_, [count_str, tag]) = c.extract();
+            let count = count_str.parse().unwrap_or(1);
+            start = c.get(0).unwrap().end();
+            match tag {
+                "!" => break,
+                "$" => {
+                    i += count;
                     j = 0;
                 }
-                start = c.get(0).unwrap().end();
-                continue;
+                _ => {
+                    for jj in 0..count {
+                        grid[i][j + jj] = match tag {
+                            "b" => 0,
+                            "B" => 0, // (and perhaps B)
+                            _ => 1,
+                        };
+                    }
+                    j += count;
+                }
             }
-            let count: usize = c.get(2).map(|m| m.as_str()).unwrap_or("1").parse().unwrap();
-            let tag = c.get(3).unwrap().as_str();
-            for jj in 0..count {
-                grid[i][j + jj] = match tag {
-                    "b" => 0,
-                    "B" => 0, // (and perhaps B)
-                    _ => 1,
-                };
-            }
-            j += count;
-
-            start = c.get(0).unwrap().end();
         }
 
         Ok(grid)
