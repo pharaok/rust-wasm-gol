@@ -4,7 +4,6 @@ use crate::quadtree::{Node, LEAF_LEVEL};
 
 type Key = (u64, i32, usize); // (node hash, generations, level)
 
-#[derive(Clone)]
 pub struct Universe {
     pub cache: RefCell<HashMap<Key, Rc<RefCell<Node>>>>,
     pub root: Rc<RefCell<Node>>,

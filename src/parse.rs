@@ -2,7 +2,7 @@ pub mod rle {
     use leptos::logging::log;
     use regex::Regex;
 
-    pub fn to_rect(rle: &str) -> Vec<Vec<u8>> {
+    pub fn to_rect(rle: &str) -> Result<Vec<Vec<u8>>, ()> {
         let section_re = Regex::new(r"(?m)^#([a-zA-Z])(.*)$").unwrap();
         let header_re = Regex::new(
             r"(?m)^\s*x\s*=\s*(\d+)\s*,?\s*y\s*=\s*(\d+)\s*(?:,\s*rule\s*=\s*(B\d*\/S\d*)\s*)?$",
@@ -19,7 +19,10 @@ pub mod rle {
             start = c.get(0).unwrap().end();
         }
 
-        let captures = header_re.captures(rle).unwrap();
+        let captures = match header_re.captures(rle) {
+            Some(c) => c,
+            None => return Err(()),
+        };
         let w: usize = captures.get(1).unwrap().as_str().parse().unwrap();
         let h: usize = captures.get(2).unwrap().as_str().parse().unwrap();
         if let Some(m) = captures.get(3) {
@@ -56,7 +59,7 @@ pub mod rle {
             start = c.get(0).unwrap().end();
         }
 
-        grid
+        Ok(grid)
     }
 
     fn item(count: usize, value: u8) -> String {

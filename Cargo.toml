@@ -5,10 +5,12 @@ edition = "2021"
 
 [dependencies]
 console_error_panic_hook = "0.1.7"
+gloo-net = "0.6.0"
 icondata = "0.3.1"
 leptos = { version = "0.6.6", features = ["csr", "nightly"] }
 leptos-use = "0.10.3"
 leptos_icons = "0.3.1"
+leptos_router = { version = "0.6.13", features = ["csr"] }
 regex = "1.10.5"
 rustc-hash = "1.1.0"
 

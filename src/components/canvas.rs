@@ -1,16 +1,21 @@
-use leptos::*;
+use gloo_net::http::Request;
+use leptos::{logging::log, *};
+use leptos_router::{use_params, Params};
 use leptos_use::{use_debounce_fn_with_arg, use_raf_fn, use_resize_observer};
 use web_sys::{
     js_sys,
     wasm_bindgen::{JsCast, JsValue},
-    CanvasRenderingContext2d,
+    CanvasRenderingContext2d
 };
 
 use crate::{
-    components::{Controls, Status},
-    draw::GolCanvas,
-    universe::Universe,
+    components::{Controls, Status}, draw::GolCanvas, parse::rle, universe::Universe
 };
+
+#[derive(Params, PartialEq)]
+struct GolParams {
+    name: Option<String>,
+}
 
 #[derive(Clone)]
 pub struct GolContext {
@@ -34,9 +39,22 @@ pub fn Canvas() -> impl IntoView {
     };
     let pan = store_value::<Option<(f64, f64)>>(None);
 
-    let (universe, set_universe) = create_signal(Universe::new()); // WARN: expensive to clone
+    let params = use_params::<GolParams>();
+    let pattern_name = move || params.with(|p| {
+        p.as_ref().map(|p| p.name.clone().unwrap_or_default()).unwrap_or_default()
+    });
+    let pattern_rle = create_resource(pattern_name, |name| async move {
+        if name.is_empty() {
+            return Err(())
+        }
+        let url = format!("/patterns/{}.rle",name);
+        let resp = Request::get(&url).send().await.map_err(|_| ())?;
+        resp.text().await.map_err(|_| ())
+    });
+
+    let (universe, set_universe) = create_signal(Universe::new());
     let (cursor, set_cursor) = create_signal((0.0, 0.0));
-    let tps = store_value(10.0);
+    let tps = store_value(20.0);
     let (is_ticking, set_is_ticking) = create_signal(false);
     provide_context(GolContext {
         universe,
@@ -49,6 +67,17 @@ pub fn Canvas() -> impl IntoView {
         set_is_ticking,
     });
 
+    create_effect(move |_| {
+        // pattern_rle will never actually be Some(Err) because
+        // the server will always return 200 OK since this is a SPA
+        if let Some(Ok(rle)) = pattern_rle() {
+            if let Ok(grid) = rle::to_rect(&rle) {
+                set_universe.update(|u| {
+                    u.root.borrow_mut().set_rect(0, 0, &grid);
+                })
+            }
+        }
+    });
     create_effect(move |_| {
         let canvas = canvas_ref().unwrap();
         canvas.set_width(div_ref().unwrap().client_width() as u32);
