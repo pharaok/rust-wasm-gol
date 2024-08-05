@@ -2,8 +2,9 @@
 use leptos::*;
 use leptos_router::*;
 
-use crate::components::Canvas;
+use crate::app::App;
 
+mod app;
 mod components;
 mod draw;
 mod parse;
@@ -17,8 +18,8 @@ fn main() {
         view! {
             <Router>
                 <Routes>
-                    <Route path="/" view=Canvas/>
-                    <Route path="/:name" view=Canvas/>
+                    <Route path="/" view=App/>
+                    <Route path="/:name" view=App/>
                 </Routes>
             </Router>
         }

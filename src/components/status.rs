@@ -1,6 +1,10 @@
 use leptos::*;
+use leptos_router::use_params;
 
-use crate::components::{canvas::GolContext, Divider};
+use crate::{
+    app::{GolContext, GolParams},
+    components::Divider,
+};
 
 #[component]
 pub fn Item(
@@ -37,32 +41,48 @@ pub fn Status() -> impl IntoView {
     } = use_context::<GolContext>().unwrap();
     let zoom = move || canvas.with(|gc| gc.as_ref().map(|gc| gc.zoom()).unwrap_or(1.0));
 
-    view! {
-        <div class="text-white flex justify-end font-mono relative text-sm">
-            <Item>{move || format!("Step: {}", 1 << universe.with(|u| u.step))}</Item>
-            <Divider/>
-            <Item>{move || format!("Gen: {}", universe.with(|u| u.generation))}</Item>
-            <Divider/>
-            <Item>{move || format!("Pop: {}", universe.with(|u| u.root.borrow().population))}</Item>
-            <Divider/>
-            <Item on_press=Box::new(move || {
-                set_canvas
-                    .update(|gc| {
-                        let gc = gc.as_mut().unwrap();
-                        gc.zoom_at(
-                            1.0 / gc.zoom(),
-                            gc.origin.0 + (gc.width() / 2.0),
-                            gc.origin.1 + (gc.height() / 2.0),
-                        );
-                    });
-            })>{move || format!("{:.0}%", zoom() * 100.0)}</Item>
-            <Divider/>
-            <Item>
-                {move || {
-                    format!("{}, {}", cursor().0.floor() as i32, cursor().1.floor() as i32)
-                }}
+    let params = use_params::<GolParams>();
+    let pattern_name = move || {
+        params.with(|p| {
+            p.as_ref()
+                .map(|p| p.name.clone().unwrap_or_default())
+                .unwrap_or_default()
+        })
+    };
 
-            </Item>
+    view! {
+        <div class="flex justify-between text-white text-sm font-mono">
+            <div>
+                <Item>{move || pattern_name}</Item>
+            </div>
+            <div class="inline-flex">
+                <Item>{move || format!("Step: {}", 1 << universe.with(|u| u.step))}</Item>
+                <Divider/>
+                <Item>{move || format!("Gen: {}", universe.with(|u| u.generation))}</Item>
+                <Divider/>
+                <Item>
+                    {move || format!("Pop: {}", universe.with(|u| u.root.borrow().population))}
+                </Item>
+                <Divider/>
+                <Item on_press=Box::new(move || {
+                    set_canvas
+                        .update(|gc| {
+                            let gc = gc.as_mut().unwrap();
+                            gc.zoom_at(
+                                1.0 / gc.zoom(),
+                                gc.origin.0 + (gc.width() / 2.0),
+                                gc.origin.1 + (gc.height() / 2.0),
+                            );
+                        });
+                })>{move || format!("{:.0}%", zoom() * 100.0)}</Item>
+                <Divider/>
+                <Item>
+                    {move || {
+                        format!("{}, {}", cursor().0.floor() as i32, cursor().1.floor() as i32)
+                    }}
+
+                </Item>
+            </div>
         </div>
     }
 }
