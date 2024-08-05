@@ -1,4 +1,4 @@
-use web_sys::CanvasRenderingContext2d;
+use web_sys::{wasm_bindgen::JsValue, CanvasRenderingContext2d};
 
 use crate::quadtree::{Node, NodeKind};
 
@@ -6,20 +6,17 @@ pub const DEFAULT_CELL_SIZE: f64 = 20.0;
 
 pub struct GolCanvas {
     pub ctx: CanvasRenderingContext2d,
-    pub ox: f64,
-    pub oy: f64,
+    pub origin: (f64, f64),
     pub cell_size: f64,
 }
 impl GolCanvas {
     pub fn new(ctx: CanvasRenderingContext2d) -> Self {
         let mut gc = GolCanvas {
             ctx,
-            ox: 0.0,
-            oy: 0.0,
+            origin: (0.0, 0.0),
             cell_size: DEFAULT_CELL_SIZE,
         };
-        gc.ox = -gc.width() / 2.0;
-        gc.oy = -gc.height() / 2.0;
+        gc.origin = (-gc.width() / 2.0, -gc.height() / 2.0);
         gc
     }
     pub fn width(&self) -> f64 {
@@ -33,20 +30,32 @@ impl GolCanvas {
     }
     pub fn to_grid(&self, offset_x: f64, offset_y: f64) -> (f64, f64) {
         (
-            self.ox + (offset_x / self.cell_size),
-            self.oy + (offset_y / self.cell_size),
+            self.origin.0 + (offset_x / self.cell_size),
+            self.origin.1 + (offset_y / self.cell_size),
         )
     }
     pub fn zoom_at(&mut self, factor: f64, x: f64, y: f64) {
         self.cell_size *= factor;
         let f = 1.0 - 1.0 / factor;
-        self.ox += (x - self.ox) * f;
-        self.oy += (y - self.oy) * f;
+        self.origin.0 += (x - self.origin.0) * f;
+        self.origin.1 += (y - self.origin.1) * f;
     }
     pub fn clear(&self) {
         let canvas = self.ctx.canvas().unwrap();
+        self.ctx.set_fill_style(&JsValue::from_str("black"));
         self.ctx
-            .clear_rect(0.0, 0.0, canvas.width() as f64, canvas.height() as f64);
+            .fill_rect(0.0, 0.0, canvas.width() as f64, canvas.height() as f64);
+    }
+    fn fill_rect(&self, left: f64, top: f64, width: f64, height: f64) {
+        let (x, y) = (
+            ((left) * self.cell_size).round(),
+            ((top) * self.cell_size).round(),
+        );
+        let (actual_width, actual_height) = (
+            ((left + width) * self.cell_size - x).round(),
+            ((top + height) * self.cell_size - y).round(),
+        );
+        self.ctx.fill_rect(x, y, actual_width, actual_height);
     }
     pub fn draw_node(&self, node: &Node, top: f64, left: f64) {
         if node.population == 0 {
@@ -59,24 +68,23 @@ impl GolCanvas {
             return;
         }
 
-        let cell_size = self.cell_size;
+        if 2.0 * half * self.cell_size < 2.0 {
+            self.ctx.set_fill_style(&JsValue::from_str(&format!(
+                "rgba(255, 255, 255, {})",
+                node.population as f64 / (4.0 * half * half)
+            )));
+            self.fill_rect(left, top, 2.0 * half, 2.0 * half);
+            return;
+        }
 
+        self.ctx.set_fill_style(&JsValue::from_str("white"));
         match &node.node {
             NodeKind::Leaf(leaf) => {
                 // guaranteed to be at leaf level
                 for (i, row) in leaf.iter().enumerate() {
                     for (j, cell) in row.iter().enumerate() {
                         if *cell != 0 {
-                            let (x, y) = (
-                                ((left + j as f64) * cell_size).round(),
-                                ((top + i as f64) * cell_size).round(),
-                            );
-                            // sharp edges without gaps between cells
-                            let (actual_width, actual_height) = (
-                                ((left + j as f64 + 1.0) * cell_size - x).round(),
-                                ((top + i as f64 + 1.0) * cell_size - y).round(),
-                            );
-                            self.ctx.fill_rect(x, y, actual_width, actual_height);
+                            self.fill_rect(left + j as f64, top + i as f64, 1.0, 1.0);
                         }
                     }
                 }

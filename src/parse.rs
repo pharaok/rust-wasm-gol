@@ -26,7 +26,7 @@ pub mod rle {
         let w: usize = captures.get(1).unwrap().as_str().parse().unwrap();
         let h: usize = captures.get(2).unwrap().as_str().parse().unwrap();
         if let Some(m) = captures.get(3) {
-            rule = m.as_str()
+            rule = m.as_str();
         }
         start = captures.get(0).unwrap().end();
 

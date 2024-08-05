@@ -2,14 +2,13 @@ use gloo_net::http::Request;
 use leptos::{logging::log, *};
 use leptos_router::{use_params, Params};
 use leptos_use::{use_debounce_fn_with_arg, use_raf_fn, use_resize_observer};
-use web_sys::{
-    js_sys,
-    wasm_bindgen::{JsCast, JsValue},
-    CanvasRenderingContext2d
-};
+use web_sys::{js_sys, wasm_bindgen::JsCast, CanvasRenderingContext2d};
 
 use crate::{
-    components::{Controls, Status}, draw::GolCanvas, parse::rle, universe::Universe
+    components::{Controls, Status},
+    draw::GolCanvas,
+    parse::rle,
+    universe::Universe,
 };
 
 #[derive(Params, PartialEq)]
@@ -40,14 +39,18 @@ pub fn Canvas() -> impl IntoView {
     let pan = store_value::<Option<(f64, f64)>>(None);
 
     let params = use_params::<GolParams>();
-    let pattern_name = move || params.with(|p| {
-        p.as_ref().map(|p| p.name.clone().unwrap_or_default()).unwrap_or_default()
-    });
+    let pattern_name = move || {
+        params.with(|p| {
+            p.as_ref()
+                .map(|p| p.name.clone().unwrap_or_default())
+                .unwrap_or_default()
+        })
+    };
     let pattern_rle = create_resource(pattern_name, |name| async move {
         if name.is_empty() {
-            return Err(())
+            return Err(());
         }
-        let url = format!("/patterns/{}.rle",name);
+        let url = format!("/patterns/{}.rle", name);
         let resp = Request::get(&url).send().await.map_err(|_| ())?;
         resp.text().await.map_err(|_| ())
     });
@@ -72,9 +75,20 @@ pub fn Canvas() -> impl IntoView {
         // the server will always return 200 OK since this is a SPA
         if let Some(Ok(rle)) = pattern_rle() {
             if let Ok(grid) = rle::to_rect(&rle) {
+                let (w, h) = (grid[0].len() as i32, grid.len() as i32);
                 set_universe.update(|u| {
-                    u.root.borrow_mut().set_rect(0, 0, &grid);
-                })
+                    u.root.borrow_mut().set_rect(-w / 2, -h / 2, &grid);
+                });
+                set_gol_canvas.update(|gc| {
+                    let gc = gc.as_mut().unwrap();
+
+                    let (inner_width, inner_height) = (
+                        window().inner_width().unwrap().as_f64().unwrap(),
+                        window().inner_height().unwrap().as_f64().unwrap(),
+                    );
+                    let new_cell_size = (inner_width / w as f64).min(inner_height / h as f64) * 0.8;
+                    gc.zoom_at(new_cell_size / gc.cell_size, 0.0, 0.0);
+                });
             }
         }
     });
@@ -121,14 +135,12 @@ pub fn Canvas() -> impl IntoView {
 
         gol_canvas.with(|gc| {
             let gc = gc.as_ref().unwrap();
-            let ctx = &gc.ctx;
             gc.clear();
 
-            ctx.set_fill_style(&JsValue::from_str("white"));
             universe.with(|u| {
                 let root = u.root.borrow();
                 let half = (1 << (root.level - 1)) as f64;
-                gc.draw_node(&root, -half - gc.oy, -half - gc.ox);
+                gc.draw_node(&root, -half - gc.origin.1, -half - gc.origin.0);
             });
         });
     });
@@ -164,8 +176,8 @@ pub fn Canvas() -> impl IntoView {
                         set_gol_canvas
                             .update(|gc| {
                                 let gc = gc.as_mut().unwrap();
-                                gc.ox += px - x;
-                                gc.oy += py - y;
+                                gc.origin.0 += px - x;
+                                gc.origin.1 += py - y;
                             })
                     } else {
                         set_cursor((x, y));
