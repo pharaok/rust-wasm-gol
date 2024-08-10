@@ -39,7 +39,7 @@ pub fn Status() -> impl IntoView {
         set_canvas,
         ..
     } = use_context::<GolContext>().unwrap();
-    let zoom = move || canvas.with(|gc| gc.as_ref().map(|gc| gc.zoom()).unwrap_or(1.0));
+    let zoom = move || canvas.with(|gc| gc.as_ref().map(|gc| gc.get_zoom()).unwrap_or(1.0));
 
     let params = use_params::<GolParams>();
     let pattern_name = move || {
@@ -68,11 +68,7 @@ pub fn Status() -> impl IntoView {
                     set_canvas
                         .update(|gc| {
                             let gc = gc.as_mut().unwrap();
-                            gc.zoom_at(
-                                1.0 / gc.zoom(),
-                                gc.origin.0 + (gc.width() / 2.0),
-                                gc.origin.1 + (gc.height() / 2.0),
-                            );
+                            gc.zoom_at_center(1.0 / gc.get_zoom());
                         });
                 })>{move || format!("{:.0}%", zoom() * 100.0)}</Item>
                 <Divider/>

@@ -4,6 +4,8 @@ use crate::quadtree::{Node, LEAF_LEVEL};
 
 type Key = (u64, i32, usize); // (node hash, generations, level)
 
+// BUG: Looks like the FxHashMap hasher causes a collision
+// on generation 1362 of acorn with step=0 and (0,0) as the lone cell
 pub struct Universe {
     pub cache: RefCell<HashMap<Key, Rc<RefCell<Node>>>>,
     pub root: Rc<RefCell<Node>>,
@@ -11,13 +13,21 @@ pub struct Universe {
     pub step: i32,
 }
 
-impl Universe {
-    pub fn new() -> Self {
+impl Default for Universe {
+    fn default() -> Self {
         Self {
-            // BUG: Looks like the FxHashMap hasher causes a collision
-            // on generation 1362 of acorn with step=0 and (0,0) as the lone cell
             cache: RefCell::new(HashMap::new()),
             root: Rc::new(RefCell::new(Node::new(16))),
+            generation: 0,
+            step: 0,
+        }
+    }
+}
+impl Universe {
+    pub fn with_size(size: usize) -> Self {
+        Self {
+            cache: RefCell::new(HashMap::new()),
+            root: Rc::new(RefCell::new(Node::new(size))),
             generation: 0,
             step: 0,
         }

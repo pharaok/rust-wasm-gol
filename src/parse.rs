@@ -1,21 +1,46 @@
 pub mod rle {
-    use leptos::logging::log;
     use regex::Regex;
 
-    pub fn to_rect(rle: &str) -> Result<Vec<Vec<u8>>, ()> {
+    pub struct PatternMetadata {
+        pub name: Option<String>,
+        pub comment: String,
+        pub owner: Option<String>,
+        pub width: usize,
+        pub height: usize,
+        pub rule: String,
+    }
+
+    pub fn parse_metadata(rle: &str) -> Result<(PatternMetadata, usize), ()> {
         let section_re = Regex::new(r"(?m)^#([a-zA-Z])(.*)$").unwrap();
         let header_re = Regex::new(
-            r"(?m)^\s*x\s*=\s*(\d+)\s*,?\s*y\s*=\s*(\d+)\s*(?:,\s*rule\s*=\s*(B\d*\/S\d*)\s*)?$",
+            r"(?m)^\s*x\s*=\s*(\d+)\s*,?\s*y\s*=\s*(\d+)\s*(?:,?\s*rule\s*=\s*(\S+)\s*)?$",
         )
         .unwrap();
-        let item_re = Regex::new(r"\s*(\d*)([a-zA-Z\$\!])").unwrap();
 
+        let mut name = None;
+        let mut comment = String::new();
+        let mut owner = None;
         let mut rule = "23/3";
 
         let mut start = 0;
         while let Some(c) = section_re.captures_at(rle, start) {
             let (_, [letter, line]) = c.extract();
-            log!("{:?} {:?}", letter, line);
+            match letter {
+                "C" | "c" => {
+                    comment.push_str(line.trim());
+                    comment.push('\n');
+                }
+                "N" => {
+                    name = Some(line.trim().to_string());
+                }
+                "O" => {
+                    owner = Some(line.trim().to_string());
+                }
+                "r" => {
+                    rule = line.trim();
+                }
+                _ => {}
+            }
             start = c.get(0).unwrap().end();
         }
 
@@ -23,16 +48,31 @@ pub mod rle {
             Some(c) => c,
             None => return Err(()),
         };
-        let w: usize = captures.get(1).unwrap().as_str().parse().unwrap();
-        let h: usize = captures.get(2).unwrap().as_str().parse().unwrap();
+        let width: usize = captures.get(1).unwrap().as_str().parse().unwrap();
+        let height: usize = captures.get(2).unwrap().as_str().parse().unwrap();
         if let Some(m) = captures.get(3) {
             rule = m.as_str();
         }
         start = captures.get(0).unwrap().end();
+        Ok((
+            PatternMetadata {
+                name,
+                comment,
+                owner,
+                width,
+                height,
+                rule: rule.to_string(),
+            },
+            start,
+        ))
+    }
+    pub fn to_rect(rle: &str) -> Result<Vec<Vec<u8>>, ()> {
+        let item_re = Regex::new(r"\s*(\d*)([a-zA-Z\$\!])").unwrap();
 
-        let mut grid = vec![vec![0; w]; h];
-        let mut i = 0;
-        let mut j = 0;
+        let (PatternMetadata { width, height, .. }, mut start) = parse_metadata(rle)?;
+
+        let mut rect = vec![vec![0; width]; height];
+        let (mut i, mut j) = (0, 0);
         while let Some(c) = item_re.captures_at(rle, start) {
             let (_, [count_str, tag]) = c.extract();
             let count = count_str.parse().unwrap_or(1);
@@ -45,10 +85,9 @@ pub mod rle {
                 }
                 _ => {
                     for jj in 0..count {
-                        grid[i][j + jj] = match tag {
-                            "b" => 0,
-                            "B" => 0, // (and perhaps B)
-                            _ => 1,
+                        match tag {
+                            "b" | "B" => {}
+                            _ => rect[i][j + jj] = 1,
                         };
                     }
                     j += count;
@@ -56,7 +95,7 @@ pub mod rle {
             }
         }
 
-        Ok(grid)
+        Ok(rect)
     }
 
     fn item(count: usize, value: u8) -> String {

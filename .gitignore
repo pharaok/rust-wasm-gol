@@ -1,4 +1,4 @@
-/target
-/dist
-/node_modules
+target
+dist
+node_modules
 /public/patterns
