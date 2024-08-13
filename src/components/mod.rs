@@ -3,16 +3,18 @@ use leptos::*;
 pub mod button;
 pub mod canvas;
 pub mod controls;
+pub mod menu;
 pub mod status;
 
-pub use crate::components::button::Button;
-pub use crate::components::canvas::Canvas;
-pub use crate::components::controls::Controls;
-pub use crate::components::status::Status;
+pub use crate::components::button::*;
+pub use crate::components::canvas::*;
+pub use crate::components::controls::*;
+pub use crate::components::menu::*;
+pub use crate::components::status::*;
 
 #[component]
 pub fn Divider() -> impl IntoView {
-    view! { <div class="border-l-2 border-white/20"></div> }
+    view! { <div class="border-l-2 border-neutral-700"></div> }
 }
 
 #[component]

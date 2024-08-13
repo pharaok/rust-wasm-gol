@@ -2,7 +2,7 @@ use leptos::*;
 
 use crate::{
     app::GolContext,
-    components::{button::ButtonVariant, Button, Divider, Icon},
+    components::{Button, ButtonVariant, Divider, Icon},
 };
 
 #[component]
@@ -16,7 +16,7 @@ pub fn Controls() -> impl IntoView {
     } = use_context::<GolContext>().unwrap();
 
     view! {
-        <div class="bg-white/5 rounded-lg pointer-events-auto flex overflow-hidden">
+        <div class="rounded-lg pointer-events-auto flex overflow-hidden">
             <Button
                 variant=ButtonVariant::Icon
                 disabled=Signal::derive(move || universe.with(|u| u.step <= 0))

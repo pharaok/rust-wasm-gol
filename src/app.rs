@@ -3,7 +3,7 @@ use leptos::*;
 use leptos_router::{use_params, Params};
 
 use crate::{
-    components::{Canvas, Controls, Status},
+    components::{Canvas, Controls, Menu, MenuTrigger, Status},
     draw::GolCanvas,
     parse::rle,
     quadtree::Node,
@@ -92,6 +92,9 @@ pub fn App() -> impl IntoView {
             <div class="absolute bottom-0 inset-x-0">
                 <Status/>
             </div>
+            <Menu>
+                <MenuTrigger>PATTERNS</MenuTrigger>
+            </Menu>
         </div>
     }
 }
