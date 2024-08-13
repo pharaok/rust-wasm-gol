@@ -4,13 +4,17 @@ pub mod button;
 pub mod canvas;
 pub mod controls;
 pub mod menu;
+pub mod pattern_card;
 pub mod status;
+pub mod text;
 
 pub use crate::components::button::*;
 pub use crate::components::canvas::*;
 pub use crate::components::controls::*;
 pub use crate::components::menu::*;
+pub use crate::components::pattern_card::*;
 pub use crate::components::status::*;
+pub use crate::components::text::*;
 
 #[component]
 pub fn Divider() -> impl IntoView {

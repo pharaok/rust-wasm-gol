@@ -1,4 +1,5 @@
 use leptos::*;
+use leptos_router::*;
 use tailwind_fuse::tw_merge;
 
 pub enum ButtonVariant {
@@ -35,5 +36,19 @@ where
 
             {children()}
         </button>
+    }
+}
+
+#[component]
+pub fn Link(
+    children: Children,
+    href: String,
+    #[prop(into, optional)] class: Option<String>,
+    #[prop(attrs)] attrs: Vec<(&'static str, Attribute)>,
+) -> impl IntoView {
+    view! {
+        <A class=tw_merge!("text-blue-500 hover:underline", class) href=href.clone() {..attrs}>
+            {children()}
+        </A>
     }
 }
