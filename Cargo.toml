@@ -6,14 +6,15 @@ edition = "2021"
 [dependencies]
 console_error_panic_hook = "0.1.7"
 gloo-net = "0.6.0"
-icondata = "0.3.1"
-leptos = { version = "0.6.6", features = ["csr", "nightly"] }
-leptos-use = "0.10.3"
+icondata = "0.4.0"
+leptos = { version = "0.6.14", features = ["csr", "nightly"] }
+leptos-use = "0.12.0"
 leptos_icons = "0.3.1"
-leptos_router = { version = "0.6.13", features = ["csr"] }
-regex = "1.10.5"
-rustc-hash = "1.1.0"
+leptos_router = { version = "0.6.14", features = ["csr"] }
+regex = "1.10.6"
 tailwind_fuse = "0.3.1"
 
+
 [dependencies.web-sys]
-features = ["CanvasRenderingContext2d"]
+version = "0.3.70"
+features = ["CanvasRenderingContext2d", "HtmlCanvasElement"]

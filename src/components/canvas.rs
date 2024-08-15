@@ -1,29 +1,27 @@
 use leptos::*;
-use leptos_use::{use_debounce_fn_with_arg, use_raf_fn, use_resize_observer};
+use leptos_use::{use_debounce_fn_with_arg, use_resize_observer};
 use web_sys::{js_sys, wasm_bindgen::JsCast, CanvasRenderingContext2d};
 
 use crate::{app::GolContext, draw::GolCanvas};
 
+pub fn create_2d_context(canvas: HtmlElement<html::Canvas>, options: js_sys::Object) -> GolCanvas {
+    let ctx = canvas
+        .get_context_with_context_options("2d", &options)
+        .unwrap()
+        .unwrap()
+        .dyn_into::<CanvasRenderingContext2d>()
+        .unwrap();
+
+    GolCanvas::new(ctx)
+}
+
 #[component]
-pub fn Canvas() -> impl IntoView {
+pub fn Canvas(
+    canvas: ReadSignal<Option<GolCanvas>>,
+    set_canvas: WriteSignal<Option<GolCanvas>>,
+) -> impl IntoView {
     let div_ref = create_node_ref::<html::Div>();
     let canvas_ref = create_node_ref::<html::Canvas>();
-    let GolContext {
-        universe,
-        set_universe,
-        canvas: gol_canvas,
-        set_canvas: set_gol_canvas,
-        set_cursor,
-        is_ticking,
-        set_is_ticking,
-        ..
-    } = use_context::<GolContext>().unwrap();
-
-    let offset_to_grid = move |x: i32, y: i32| {
-        gol_canvas.with(|gc| gc.as_ref().unwrap().to_grid(x as f64, y as f64))
-    };
-    let pan = store_value::<Option<(f64, f64)>>(None);
-    let tps = store_value(20.0);
 
     create_effect(move |_| {
         let canvas = canvas_ref().unwrap();
@@ -32,15 +30,7 @@ pub fn Canvas() -> impl IntoView {
         let options = js_sys::Object::new();
         js_sys::Reflect::set(&options, &"alpha".into(), &false.into()).unwrap();
 
-        let ctx = canvas
-            .get_context_with_context_options("2d", &options)
-            .unwrap()
-            .unwrap()
-            .dyn_into::<CanvasRenderingContext2d>()
-            .unwrap();
-
-        let gc = GolCanvas::new(ctx);
-        set_gol_canvas(Some(gc));
+        set_canvas(Some(create_2d_context(canvas, options)));
     });
 
     let debounced_resize = use_debounce_fn_with_arg(
@@ -56,92 +46,9 @@ pub fn Canvas() -> impl IntoView {
         debounced_resize((rect.width() as u32, rect.height() as u32));
     });
 
-    let prev_tick = store_value(0.0);
-    use_raf_fn(move |raf_args| {
-        let now = raf_args.timestamp;
-        if is_ticking() && now - prev_tick() > 1000.0 / tps() {
-            set_universe.update(|u| {
-                u.step();
-            });
-            prev_tick.set_value(now);
-        }
-        gol_canvas.with(|gc| {
-            let gc = gc.as_ref().unwrap();
-            gc.clear();
-            universe.with(|u| {
-                let root = u.root.borrow();
-                let half = (1 << (root.level - 1)) as f64;
-                gc.draw_node(&root, -half - gc.origin.1, -half - gc.origin.0);
-            });
-        });
-    });
     view! {
         <div _ref=div_ref class="absolute overflow-hidden w-full h-full bg-black">
-            <canvas
-                _ref=canvas_ref
-                tabindex=0
-                class="absolute"
-                on:contextmenu=move |ev| ev.prevent_default()
-                on:mousedown=move |ev| {
-                    let (x, y) = offset_to_grid(ev.offset_x(), ev.offset_y());
-                    match ev.button() {
-                        0 => {
-                            if gol_canvas.with(|gc| gc.as_ref().unwrap().cell_size) < 5.0 {
-                                return;
-                            }
-                            set_universe
-                                .update(|u| {
-                                    let (x, y) = (x.floor() as i32, y.floor() as i32);
-                                    let v = u.root.borrow().get(x, y);
-                                    u.insert(x, y, v ^ 1);
-                                });
-                        }
-                        1 => {
-                            pan.set_value(Some((x, y)));
-                        }
-                        _ => {}
-                    }
-                }
-
-                on:mousemove=move |ev| {
-                    let (x, y) = offset_to_grid(ev.offset_x(), ev.offset_y());
-                    if let Some((px, py)) = pan() {
-                        set_gol_canvas
-                            .update(|gc| {
-                                let gc = gc.as_mut().unwrap();
-                                gc.origin.0 += px - x;
-                                gc.origin.1 += py - y;
-                            })
-                    } else {
-                        set_cursor((x, y));
-                    }
-                }
-
-                on:mouseup=move |ev| {
-                    if ev.button() == 1 {
-                        pan.set_value(None);
-                    }
-                }
-
-                on:wheel=move |ev| {
-                    let (x, y) = offset_to_grid(ev.offset_x(), ev.offset_y());
-                    let factor = std::f64::consts::E.powf(-ev.delta_y() / 1000.0);
-                    set_gol_canvas
-                        .update(|gc| {
-                            gc.as_mut().unwrap().zoom_at(factor, x, y);
-                        })
-                }
-
-                on:keydown=move |ev| {
-                    match ev.key().as_str() {
-                        " " => {
-                            set_is_ticking.update(|b| *b = !*b);
-                        }
-                        _ => {}
-                    }
-                }
-            >
-            </canvas>
+            <canvas _ref=canvas_ref tabindex=0 class="absolute"></canvas>
         </div>
     }
 }

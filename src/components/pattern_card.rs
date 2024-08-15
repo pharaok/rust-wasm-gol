@@ -2,7 +2,7 @@ use leptos::*;
 
 use crate::{
     app::fetch_pattern,
-    components::Text,
+    components::{Loading, Text},
     parse::rle::{self, PatternMetadata},
 };
 
@@ -23,6 +23,9 @@ pub fn PatternCard(#[prop(into)] name: String) -> impl IntoView {
                 view! {
                     <div class="rounded-md bg-neutral-800 w-64 p-2">
                         <h2 class="text-lg font-bold w-full text-center truncate">{title}</h2>
+                        <div class="w-full aspect-square flex justify-center items-center bg-black">
+                            <Loading/>
+                        </div>
                         <div class="overflow-hidden">
                             <Text text=comment/>
                         </div>
