@@ -24,11 +24,7 @@ pub fn Text(text: String) -> impl IntoView {
                                 href=format!("https://{}", capture.get(1).unwrap().as_str())
                                 attr:target="_blank"
                             >
-                                <img
-                                    src="https://conwaylife.com/favicon.ico"
-                                    alt="ConwayLife.com"
-                                    class="inline"
-                                />
+                                <img src="/conwaylife.ico" alt="ConwayLife.com" class="inline"/>
                                 {inner_text}
                             </Link>
                         }

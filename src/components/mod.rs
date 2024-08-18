@@ -6,6 +6,7 @@ pub mod controls;
 pub mod loading;
 pub mod menu;
 pub mod pattern_card;
+pub mod pattern_library;
 pub mod status;
 pub mod text;
 
@@ -15,6 +16,7 @@ pub use crate::components::controls::*;
 pub use crate::components::loading::*;
 pub use crate::components::menu::*;
 pub use crate::components::pattern_card::*;
+pub use crate::components::pattern_library::*;
 pub use crate::components::status::*;
 pub use crate::components::text::*;
 

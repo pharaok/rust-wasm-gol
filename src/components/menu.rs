@@ -1,5 +1,4 @@
 use leptos::*;
-use leptos_use::use_timeout_fn;
 
 use crate::components::Button;
 

@@ -4,7 +4,7 @@ use leptos_router::*;
 use leptos_use::use_raf_fn;
 
 use crate::{
-    components::{create_loading_canvas, Canvas, Controls, Menu, MenuTrigger, PatternCard, Status},
+    components::{Canvas, Controls, Menu, MenuTrigger, PatternLibrary, Status},
     draw::GolCanvas,
     parse::rle,
     quadtree::Node,
@@ -39,8 +39,6 @@ pub async fn fetch_pattern(name: String) -> Result<String, ()> {
 
 #[component]
 pub fn App() -> impl IntoView {
-    provide_context(create_loading_canvas());
-
     let (universe, set_universe) = create_signal(Universe::default());
     let (canvas, set_canvas) = create_signal::<Option<GolCanvas>>(None);
     let (cursor, set_cursor) = create_signal((0.0, 0.0));
@@ -62,13 +60,8 @@ pub fn App() -> impl IntoView {
     });
 
     let params = use_params::<GolParams>();
-    let pattern_name = move || {
-        params.with(|p| {
-            p.as_ref()
-                .map(|p| p.name.clone().unwrap_or_default())
-                .unwrap_or_default()
-        })
-    };
+    let pattern_name =
+        move || params.with(|p| p.as_ref().unwrap().name.clone().unwrap_or_default());
     let pattern_rle = create_resource(pattern_name, fetch_pattern);
     create_effect(move |_| {
         // pattern_rle will never actually be Some(Err) because
@@ -111,78 +104,82 @@ pub fn App() -> impl IntoView {
     });
 
     view! {
-        <div
-            class="relative w-screen h-screen"
-            on:contextmenu=move |ev| ev.prevent_default()
-            on:mousedown=move |ev| {
-                let (x, y) = offset_to_grid(ev.offset_x(), ev.offset_y());
-                match ev.button() {
-                    0 => {
-                        if canvas.with(|gc| gc.as_ref().unwrap().cell_size) < 5.0 {
-                            return;
+        <div class="relative w-screen h-screen">
+            <div
+                on:contextmenu=move |ev| ev.prevent_default()
+                on:mousedown=move |ev| {
+                    let (x, y) = offset_to_grid(ev.offset_x(), ev.offset_y());
+                    match ev.button() {
+                        0 => {
+                            if canvas.with(|gc| gc.as_ref().unwrap().cell_size) < 5.0 {
+                                return;
+                            }
+                            set_universe
+                                .update(|u| {
+                                    let (x, y) = (x.floor() as i32, y.floor() as i32);
+                                    let v = u.root.borrow().get(x, y);
+                                    u.insert(x, y, v ^ 1);
+                                });
                         }
-                        set_universe
-                            .update(|u| {
-                                let (x, y) = (x.floor() as i32, y.floor() as i32);
-                                let v = u.root.borrow().get(x, y);
-                                u.insert(x, y, v ^ 1);
-                            });
+                        1 => {
+                            pan.set_value(Some((x, y)));
+                        }
+                        _ => {}
                     }
-                    1 => {
-                        pan.set_value(Some((x, y)));
-                    }
-                    _ => {}
                 }
-            }
 
-            on:mousemove=move |ev| {
-                let (x, y) = offset_to_grid(ev.offset_x(), ev.offset_y());
-                if let Some((px, py)) = pan() {
+                on:mousemove=move |ev| {
+                    let (x, y) = offset_to_grid(ev.offset_x(), ev.offset_y());
+                    if let Some((px, py)) = pan() {
+                        set_canvas
+                            .update(|gc| {
+                                let gc = gc.as_mut().unwrap();
+                                gc.origin.0 += px - x;
+                                gc.origin.1 += py - y;
+                            })
+                    } else {
+                        set_cursor((x, y));
+                    }
+                }
+
+                on:mouseup=move |ev| {
+                    if ev.button() == 1 {
+                        pan.set_value(None);
+                    }
+                }
+
+                on:wheel=move |ev| {
+                    let (x, y) = offset_to_grid(ev.offset_x(), ev.offset_y());
+                    let factor = std::f64::consts::E.powf(-ev.delta_y() / 1000.0);
                     set_canvas
                         .update(|gc| {
-                            let gc = gc.as_mut().unwrap();
-                            gc.origin.0 += px - x;
-                            gc.origin.1 += py - y;
+                            gc.as_mut().unwrap().zoom_at(factor, x, y);
                         })
-                } else {
-                    set_cursor((x, y));
                 }
-            }
 
-            on:mouseup=move |ev| {
-                if ev.button() == 1 {
-                    pan.set_value(None);
-                }
-            }
-
-            on:wheel=move |ev| {
-                let (x, y) = offset_to_grid(ev.offset_x(), ev.offset_y());
-                let factor = std::f64::consts::E.powf(-ev.delta_y() / 1000.0);
-                set_canvas
-                    .update(|gc| {
-                        gc.as_mut().unwrap().zoom_at(factor, x, y);
-                    })
-            }
-
-            on:keydown=move |ev| {
-                match ev.key().as_str() {
-                    " " => {
-                        set_is_ticking.update(|b| *b = !*b);
+                on:keydown=move |ev| {
+                    match ev.key().as_str() {
+                        " " => {
+                            set_is_ticking.update(|b| *b = !*b);
+                        }
+                        _ => {}
                     }
-                    _ => {}
                 }
-            }
-        >
+            >
 
-            <Canvas canvas=canvas set_canvas=set_canvas/>
-            <div class="z-10 absolute bottom-4 left-[50%] -translate-x-[50%]">
-                <Controls/>
+                <Canvas canvas=canvas set_canvas=set_canvas/>
             </div>
-            <div class="absolute bottom-0 inset-x-0">
-                <Status/>
+            <div on:click=|e| e.stop_propagation()>
+                <div class="z-10 absolute bottom-4 left-[50%] -translate-x-[50%]">
+                    <Controls/>
+                </div>
+                <div class="absolute bottom-0 inset-x-0">
+                    <Status/>
+                </div>
             </div>
             <Menu>
                 <MenuTrigger>PATTERNS</MenuTrigger>
+                <PatternLibrary/>
             </Menu>
         </div>
     }

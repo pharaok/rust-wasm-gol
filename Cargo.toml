@@ -14,7 +14,11 @@ leptos_router = { version = "0.6.14", features = ["csr"] }
 regex = "1.10.6"
 tailwind_fuse = "0.3.1"
 
-
 [dependencies.web-sys]
 version = "0.3.70"
-features = ["CanvasRenderingContext2d", "HtmlCanvasElement"]
+features = [
+    "CanvasRenderingContext2d",
+    "HtmlCanvasElement",
+    "Performance",
+    "PerformanceTiming",
+]

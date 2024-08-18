@@ -1,5 +1,3 @@
-use std::cell::LazyCell;
-
 use leptos::*;
 use leptos_use::use_raf_fn;
 use web_sys::js_sys;
@@ -13,7 +11,7 @@ type LoadingContext = ReadSignal<Option<GolCanvas>>;
 pub fn create_loading_canvas() -> ReadSignal<Option<GolCanvas>> {
     let canvas_ref = create_node_ref::<html::Canvas>();
     let universe = store_value({
-        let mut u = Universe::with_size(5);
+        let u = Universe::with_size(5);
 
         let rle = include_str!("../../public/patterns/clock2.rle");
         let rect = rle::to_rect(rle).unwrap();

@@ -1,4 +1,5 @@
 use leptos::*;
+use leptos_router::*;
 
 use crate::{
     app::fetch_pattern,
@@ -8,7 +9,13 @@ use crate::{
 
 #[component]
 pub fn PatternCard(#[prop(into)] name: String) -> impl IntoView {
-    let pattern_rle = create_resource(move || name.clone(), fetch_pattern);
+    let pattern_rle = create_resource(
+        {
+            let n = name.clone();
+            move || n.clone()
+        },
+        fetch_pattern,
+    );
     let pattern_metadata = move || {
         pattern_rle
             .get()
@@ -16,32 +23,42 @@ pub fn PatternCard(#[prop(into)] name: String) -> impl IntoView {
     };
 
     view! {
-        {move || {
-            if let Some(
-                Ok((PatternMetadata { name: title, comment, owner, width, height, .. }, _)),
-            ) = pattern_metadata() {
-                view! {
-                    <div class="rounded-md bg-neutral-800 w-64 p-2">
-                        <h2 class="text-lg font-bold w-full text-center truncate">{title}</h2>
-                        <div class="w-full aspect-square flex justify-center items-center bg-black">
-                            <Loading/>
-                        </div>
+        <div class="rounded-md bg-neutral-800 w-64 p-2">
+            {move || {
+                if let Some(
+                    Ok((PatternMetadata { name: title, comment, owner, width, height, .. }, _)),
+                ) = pattern_metadata() {
+                    view! {
+                        <A href=format!("/{}", name.clone())>
+                            <h2 class="text-lg font-bold w-full text-center truncate">
+                                {title.unwrap_or("No title".to_string())}
+                            </h2>
+                            <div class="w-full aspect-square flex justify-center items-center bg-black">
+                                <Loading/>
+                            </div>
+                        </A>
                         <div class="overflow-hidden">
                             <Text text=comment/>
                         </div>
                         <div class="w-full">
-                            {owner
-                                .map(|o| {
-                                    view! { <p>{format!("Author: {}", o)}</p> }
-                                })}
+                            {owner.map(|o| view! { <p>{format!("Author: {}", o)}</p> })}
                             <p>{format!("Size: {}x{}", width, height)}</p>
                         </div>
-                    </div>
+                    }
+                        .into_view()
+                } else {
+                    view! {
+                        <h2 class="text-lg font-bold w-full text-center truncate">
+                            {name.clone()}
+                        </h2>
+                        <div class="w-full aspect-square flex justify-center items-center bg-black">
+                            <Loading/>
+                        </div>
+                    }
+                        .into_view()
                 }
-                    .into_view()
-            } else {
-                "Loading...".into_view()
-            }
-        }}
+            }}
+
+        </div>
     }
 }
