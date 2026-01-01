@@ -1,9 +1,10 @@
-use web_sys::{wasm_bindgen::JsValue, CanvasRenderingContext2d};
+use web_sys::CanvasRenderingContext2d;
 
 use crate::quadtree::{Node, NodeKind};
 
 pub const DEFAULT_CELL_SIZE: f64 = 20.0;
 
+#[derive(Clone)]
 pub struct GolCanvas {
     pub ctx: CanvasRenderingContext2d,
     pub origin: (f64, f64),
@@ -68,7 +69,7 @@ impl GolCanvas {
     }
     pub fn clear(&self) {
         let canvas = self.ctx.canvas().unwrap();
-        self.ctx.set_fill_style(&JsValue::from_str("black"));
+        self.ctx.set_fill_style_str("black");
         self.ctx
             .fill_rect(0.0, 0.0, canvas.width() as f64, canvas.height() as f64);
     }
@@ -95,15 +96,15 @@ impl GolCanvas {
         }
 
         if 2.0 * half * self.cell_size < 2.0 {
-            self.ctx.set_fill_style(&JsValue::from_str(&format!(
+            self.ctx.set_fill_style_str(&format!(
                 "rgba(255, 255, 255, {})",
                 (node.population as f64 / (4.0 * half * half)).sqrt().sqrt()
-            )));
+            ));
             self.fill_rect(left, top, 2.0 * half, 2.0 * half);
             return;
         }
 
-        self.ctx.set_fill_style(&JsValue::from_str("white"));
+        self.ctx.set_fill_style_str("white");
         match &node.node {
             NodeKind::Leaf(leaf) => {
                 // guaranteed to be at leaf level

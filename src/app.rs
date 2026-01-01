@@ -1,6 +1,7 @@
 use gloo_net::http::Request;
-use leptos::*;
-use leptos_router::*;
+use leptos::prelude::*;
+use leptos_router::hooks::*;
+use leptos_router::params::Params;
 use leptos_use::use_raf_fn;
 
 use crate::{
@@ -18,14 +19,14 @@ pub struct GolParams {
 
 #[derive(Clone)]
 pub struct GolContext {
-    pub universe: ReadSignal<Universe>,
-    pub set_universe: WriteSignal<Universe>,
-    pub cursor: ReadSignal<(f64, f64)>,
-    pub set_cursor: WriteSignal<(f64, f64)>,
-    pub canvas: ReadSignal<Option<GolCanvas>>,
-    pub set_canvas: WriteSignal<Option<GolCanvas>>,
-    pub is_ticking: ReadSignal<bool>,
-    pub set_is_ticking: WriteSignal<bool>,
+    pub universe: ReadSignal<Universe, LocalStorage>,
+    pub set_universe: WriteSignal<Universe, LocalStorage>,
+    pub cursor: ReadSignal<(f64, f64), LocalStorage>,
+    pub set_cursor: WriteSignal<(f64, f64), LocalStorage>,
+    pub canvas: ReadSignal<Option<GolCanvas>, LocalStorage>,
+    pub set_canvas: WriteSignal<Option<GolCanvas>, LocalStorage>,
+    pub is_ticking: ReadSignal<bool, LocalStorage>,
+    pub set_is_ticking: WriteSignal<bool, LocalStorage>,
 }
 
 pub async fn fetch_pattern(name: String) -> Result<String, ()> {
@@ -39,14 +40,14 @@ pub async fn fetch_pattern(name: String) -> Result<String, ()> {
 
 #[component]
 pub fn App() -> impl IntoView {
-    let (universe, set_universe) = create_signal(Universe::default());
-    let (canvas, set_canvas) = create_signal::<Option<GolCanvas>>(None);
-    let (cursor, set_cursor) = create_signal((0.0, 0.0));
-    let (is_ticking, set_is_ticking) = create_signal(false);
+    let (universe, set_universe) = signal_local(Universe::default());
+    let (canvas, set_canvas) = signal_local::<Option<GolCanvas>>(None);
+    let (cursor, set_cursor) = signal_local((0.0, 0.0));
+    let (is_ticking, set_is_ticking) = signal_local(false);
     let offset_to_grid =
         move |x: i32, y: i32| canvas.with(|gc| gc.as_ref().unwrap().to_grid(x as f64, y as f64));
-    let pan = store_value::<Option<(f64, f64)>>(None);
-    let tps = store_value(20.0);
+    let pan = StoredValue::<Option<(f64, f64)>>::new(None);
+    let tps = StoredValue::new(20.0);
 
     provide_context(GolContext {
         universe,
@@ -62,11 +63,11 @@ pub fn App() -> impl IntoView {
     let params = use_params::<GolParams>();
     let pattern_name =
         move || params.with(|p| p.as_ref().unwrap().name.clone().unwrap_or_default());
-    let pattern_rle = create_resource(pattern_name, fetch_pattern);
-    create_effect(move |_| {
+    let pattern_rle = LocalResource::new(move || fetch_pattern(pattern_name()));
+    Effect::new(move |_| {
         // pattern_rle will never actually be Some(Err) because
         // the server will always return 200 OK since this is a SPA
-        if let Some(Ok(rle)) = pattern_rle() {
+        if let Some(Ok(rle)) = pattern_rle.get() {
             if let Ok(rect) = rle::to_rect(&rle) {
                 let (w, h) = (rect[0].len() as i32, rect.len() as i32);
                 set_universe.update(|u| {
@@ -83,10 +84,10 @@ pub fn App() -> impl IntoView {
         }
     });
 
-    let prev_tick = store_value(0.0);
+    let prev_tick = StoredValue::new_local(0.0);
     use_raf_fn(move |raf_args| {
         let now = raf_args.timestamp;
-        if is_ticking() && now - prev_tick() > 1000.0 / tps() {
+        if is_ticking() && now - prev_tick.get_value() > 1000.0 / tps.get_value() {
             set_universe.update(|u| {
                 u.step();
             });
@@ -130,7 +131,7 @@ pub fn App() -> impl IntoView {
 
                 on:mousemove=move |ev| {
                     let (x, y) = offset_to_grid(ev.offset_x(), ev.offset_y());
-                    if let Some((px, py)) = pan() {
+                    if let Some((px, py)) = pan.get_value() {
                         set_canvas
                             .update(|gc| {
                                 let gc = gc.as_mut().unwrap();
@@ -167,19 +168,19 @@ pub fn App() -> impl IntoView {
                 }
             >
 
-                <Canvas canvas=canvas set_canvas=set_canvas/>
+                <Canvas canvas=canvas set_canvas=set_canvas />
             </div>
             <div on:click=|e| e.stop_propagation()>
                 <div class="z-10 absolute bottom-4 left-[50%] -translate-x-[50%]">
-                    <Controls/>
+                    <Controls />
                 </div>
                 <div class="absolute bottom-0 inset-x-0">
-                    <Status/>
+                    <Status />
                 </div>
             </div>
             <Menu>
                 <MenuTrigger>PATTERNS</MenuTrigger>
-                <PatternLibrary/>
+                <PatternLibrary />
             </Menu>
         </div>
     }

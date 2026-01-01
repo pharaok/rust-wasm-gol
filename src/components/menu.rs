@@ -1,11 +1,12 @@
-use leptos::*;
+use leptos::portal::Portal;
+use leptos::prelude::*;
 
 use crate::components::Button;
 
 #[derive(Clone)]
 pub struct MenuContext {
-    pub open: ReadSignal<bool>,
-    pub set_open: WriteSignal<bool>,
+    pub open: ReadSignal<bool, LocalStorage>,
+    pub set_open: WriteSignal<bool, LocalStorage>,
 }
 
 #[component]
@@ -14,7 +15,7 @@ pub fn Menu(
     // set_open: WriteSignal<bool>,
     children: ChildrenFn,
 ) -> impl IntoView {
-    let (open, set_open) = create_signal(false);
+    let (open, set_open) = signal_local(false);
     provide_context(MenuContext { open, set_open });
 
     view! {

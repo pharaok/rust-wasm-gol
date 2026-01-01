@@ -1,4 +1,4 @@
-use leptos::*;
+use leptos::prelude::*;
 
 use crate::{
     app::GolContext,
@@ -22,9 +22,9 @@ pub fn Controls() -> impl IntoView {
                 disabled=Signal::derive(move || universe.with(|u| u.step <= 0))
                 on_press=move || { set_universe.update(|u| { u.step = (u.step - 1).max(0) }) }
             >
-                <Icon icon=icondata::LuRewind/>
+                <Icon icon=icondata::LuRewind />
             </Button>
-            <Divider/>
+            <Divider />
             <Button
                 variant=ButtonVariant::Icon
                 disabled=true
@@ -33,9 +33,9 @@ pub fn Controls() -> impl IntoView {
                 }
             >
 
-                <Icon icon=icondata::LuStepBack/>
+                <Icon icon=icondata::LuStepBack />
             </Button>
-            <Divider/>
+            <Divider />
             <Button
                 variant=ButtonVariant::Icon
                 on_press=move || {
@@ -45,21 +45,21 @@ pub fn Controls() -> impl IntoView {
 
                 {move || {
                     if is_ticking() {
-                        view! { <Icon icon=icondata::LuPause/> }
+                        view! { <Icon icon=icondata::LuPause /> }
                     } else {
-                        view! { <Icon icon=icondata::LuPlay/> }
+                        view! { <Icon icon=icondata::LuPlay /> }
                     }
                 }}
 
             </Button>
-            <Divider/>
+            <Divider />
             <Button
                 variant=ButtonVariant::Icon
                 on_press=move || { set_universe.update(|u| { u.step() }) }
             >
-                <Icon icon=icondata::LuStepForward/>
+                <Icon icon=icondata::LuStepForward />
             </Button>
-            <Divider/>
+            <Divider />
             <Button
                 variant=ButtonVariant::Icon
                 disabled=Signal::derive(move || {
@@ -72,7 +72,7 @@ pub fn Controls() -> impl IntoView {
                 }
             >
 
-                <Icon icon=icondata::LuFastForward/>
+                <Icon icon=icondata::LuFastForward />
             </Button>
         </div>
     }

@@ -1,5 +1,6 @@
-use leptos::*;
-use leptos_router::*;
+use leptos::attr::any_attribute::AnyAttribute;
+use leptos::prelude::*;
+use leptos_router::components::*;
 use tailwind_fuse::tw_merge;
 
 pub enum ButtonVariant {
@@ -13,7 +14,7 @@ pub fn Button<F>(
     #[prop(into, optional)] class: Option<String>,
     #[prop(default=ButtonVariant::Standard)] variant: ButtonVariant,
     on_press: F,
-    #[prop(into, default = MaybeSignal::Static(false))] disabled: MaybeSignal<bool>,
+    #[prop(into, default = false.into())] disabled: Signal<bool>,
 ) -> impl IntoView
 where
     F: Fn() + 'static,
@@ -44,10 +45,10 @@ pub fn Link(
     children: Children,
     href: String,
     #[prop(into, optional)] class: Option<String>,
-    #[prop(attrs)] attrs: Vec<(&'static str, Attribute)>,
+    #[prop(attrs)] attrs: Vec<AnyAttribute>,
 ) -> impl IntoView {
     view! {
-        <A class=tw_merge!("text-blue-500 hover:underline", class) href=href.clone() {..attrs}>
+        <A href=href attr:class=tw_merge!("text-blue-500 hover:underline", class) {..attrs}>
             {children()}
         </A>
     }

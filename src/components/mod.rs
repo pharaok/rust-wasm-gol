@@ -1,4 +1,4 @@
-use leptos::*;
+use leptos::prelude::*;
 
 pub mod button;
 pub mod canvas;
@@ -27,5 +27,5 @@ pub fn Divider() -> impl IntoView {
 
 #[component]
 pub fn Icon(icon: icondata::Icon) -> impl IntoView {
-    view! { <leptos_icons::Icon icon=icon class="w-6 h-6 fill-current"></leptos_icons::Icon> }
+    view! { <leptos_icons::Icon icon=icon attr:class="w-6 h-6 fill-current"></leptos_icons::Icon> }
 }

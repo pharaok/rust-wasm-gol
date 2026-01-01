@@ -1,5 +1,5 @@
-use leptos::*;
-use leptos_router::*;
+use leptos::prelude::*;
+use leptos_router::components::*;
 
 use crate::{
     app::fetch_pattern,
@@ -9,13 +9,8 @@ use crate::{
 
 #[component]
 pub fn PatternCard(#[prop(into)] name: String) -> impl IntoView {
-    let pattern_rle = create_resource(
-        {
-            let n = name.clone();
-            move || n.clone()
-        },
-        fetch_pattern,
-    );
+    let value = name.clone(); // HACK: ?
+    let pattern_rle = LocalResource::new(move || fetch_pattern(value.clone()));
     let pattern_metadata = move || {
         pattern_rle
             .get()
@@ -34,28 +29,28 @@ pub fn PatternCard(#[prop(into)] name: String) -> impl IntoView {
                                 {title.unwrap_or("No title".to_string())}
                             </h2>
                             <div class="w-full aspect-square flex justify-center items-center bg-black">
-                                <Loading/>
+                                <Loading />
                             </div>
                         </A>
                         <div class="overflow-hidden">
-                            <Text text=comment/>
+                            <Text text=comment />
                         </div>
                         <div class="w-full">
                             {owner.map(|o| view! { <p>{format!("Author: {}", o)}</p> })}
                             <p>{format!("Size: {}x{}", width, height)}</p>
                         </div>
                     }
-                        .into_view()
+                        .into_view();
                 } else {
                     view! {
                         <h2 class="text-lg font-bold w-full text-center truncate">
                             {name.clone()}
                         </h2>
                         <div class="w-full aspect-square flex justify-center items-center bg-black">
-                            <Loading/>
+                            <Loading />
                         </div>
                     }
-                        .into_view()
+                        .into_view();
                 }
             }}
 

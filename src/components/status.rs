@@ -1,5 +1,5 @@
-use leptos::*;
-use leptos_router::use_params;
+use leptos::prelude::*;
+use leptos_router::hooks::use_params;
 
 use crate::{
     app::{GolContext, GolParams},
@@ -57,13 +57,13 @@ pub fn Status() -> impl IntoView {
             </div>
             <div class="inline-flex">
                 <Item>{move || format!("Step: {}", 1 << universe.with(|u| u.step))}</Item>
-                <Divider/>
+                <Divider />
                 <Item>{move || format!("Gen: {}", universe.with(|u| u.generation))}</Item>
-                <Divider/>
+                <Divider />
                 <Item>
                     {move || format!("Pop: {}", universe.with(|u| u.root.borrow().population))}
                 </Item>
-                <Divider/>
+                <Divider />
                 <Item on_press=Box::new(move || {
                     set_canvas
                         .update(|gc| {
@@ -71,7 +71,7 @@ pub fn Status() -> impl IntoView {
                             gc.zoom_at_center(1.0 / gc.get_zoom());
                         });
                 })>{move || format!("{:.0}%", zoom() * 100.0)}</Item>
-                <Divider/>
+                <Divider />
                 <Item>
                     {move || {
                         format!("{}, {}", cursor().0.floor() as i32, cursor().1.floor() as i32)

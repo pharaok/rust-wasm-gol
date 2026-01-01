@@ -1,4 +1,4 @@
-use leptos::*;
+use leptos::prelude::*;
 use regex::Regex;
 
 use crate::components::Link;
@@ -12,7 +12,7 @@ pub fn Text(text: String) -> impl IntoView {
         <p class="whitespace-pre-line">
             {move || {
                 let mut prev = 0;
-                let mut nodes = conway_life_link
+                let mut nodes: Vec<AnyView> = conway_life_link
                     .captures_iter(&text)
                     .map(|capture| {
                         let prev_text = text[prev..capture.get(0).unwrap().start()].to_string();
@@ -24,14 +24,14 @@ pub fn Text(text: String) -> impl IntoView {
                                 href=format!("https://{}", capture.get(1).unwrap().as_str())
                                 attr:target="_blank"
                             >
-                                <img src="/conwaylife.ico" alt="ConwayLife.com" class="inline"/>
+                                <img src="/conwaylife.ico" alt="ConwayLife.com" class="inline" />
                                 {inner_text}
                             </Link>
                         }
-                            .into_view()
+                            .into_any()
                     })
-                    .collect::<Vec<_>>();
-                nodes.push(text[prev..].to_string().into_view());
+                    .collect();
+                nodes.push(text[prev..].to_string().into_any());
                 nodes
             }}
 
