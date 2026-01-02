@@ -96,7 +96,7 @@ pub fn App() -> impl IntoView {
     let prev_tick = StoredValue::new_local(0.0);
     use_raf_fn(move |raf_args| {
         let now = raf_args.timestamp;
-        if is_ticking() && now - prev_tick.get_value() > 1000.0 / tps.get_value() {
+        if is_ticking.get() && now - prev_tick.get_value() > 1000.0 / tps.get_value() {
             set_universe.update(|u| {
                 u.step();
             });
@@ -148,7 +148,7 @@ pub fn App() -> impl IntoView {
                                 gc.origin.1 += py - y;
                             })
                     } else {
-                        set_cursor((x, y));
+                        set_cursor.set((x, y));
                     }
                 }
 

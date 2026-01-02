@@ -19,7 +19,7 @@ pub fn Controls() -> impl IntoView {
         <div class="rounded-lg pointer-events-auto flex overflow-hidden">
             <Button
                 variant=ButtonVariant::Icon
-                disabled=Signal::derive(move || universe.with(|u| u.step <= 0))
+                disabled=Signal::derive_local(move || universe.with(|u| u.step <= 0))
                 on_press=move || { set_universe.update(|u| { u.step = (u.step - 1).max(0) }) }
             >
                 <Icon icon=icondata::LuRewind />
@@ -32,7 +32,6 @@ pub fn Controls() -> impl IntoView {
                     unimplemented!("history");
                 }
             >
-
                 <Icon icon=icondata::LuStepBack />
             </Button>
             <Divider />
@@ -42,15 +41,13 @@ pub fn Controls() -> impl IntoView {
                     set_is_ticking.update(|b| *b = !*b);
                 }
             >
-
                 {move || {
-                    if is_ticking() {
+                    if is_ticking.get() {
                         view! { <Icon icon=icondata::LuPause /> }
                     } else {
                         view! { <Icon icon=icondata::LuPlay /> }
                     }
                 }}
-
             </Button>
             <Divider />
             <Button
@@ -62,15 +59,13 @@ pub fn Controls() -> impl IntoView {
             <Divider />
             <Button
                 variant=ButtonVariant::Icon
-                disabled=Signal::derive(move || {
+                disabled=Signal::derive_local(move || {
                     universe.with(|u| u.step >= u.get_level() as i32 - 2)
                 })
-
                 on_press=move || {
                     set_universe.update(|u| { u.step = (u.step + 1).min(u.get_level() as i32 - 2) })
                 }
             >
-
                 <Icon icon=icondata::LuFastForward />
             </Button>
         </div>

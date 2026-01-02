@@ -31,7 +31,7 @@ pub fn Canvas(
         let options = js_sys::Object::new();
         js_sys::Reflect::set(&options, &"alpha".into(), &false.into()).unwrap();
 
-        set_canvas(Some(create_2d_context(canvas, options)));
+        set_canvas.set(Some(create_2d_context(canvas, options)));
     });
 
     let debounced_resize = use_debounce_fn_with_arg(

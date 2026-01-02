@@ -14,7 +14,7 @@ pub fn Button<F>(
     #[prop(into, optional)] class: TextProp,
     #[prop(default=ButtonVariant::Standard)] variant: ButtonVariant,
     on_press: F,
-    #[prop(into, default = false.into())] disabled: Signal<bool>,
+    #[prop(into, default = false.into())] disabled: Signal<bool, LocalStorage>,
 ) -> impl IntoView
 where
     F: Fn() + 'static,
@@ -29,7 +29,7 @@ where
                 )
             }
 
-            disabled=disabled
+            disabled=disabled.get()
             on:click=move |_| {
                 on_press();
             }

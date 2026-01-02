@@ -48,7 +48,7 @@ pub fn PatternLibrary() -> impl IntoView {
             .map(|ps| {
                 let mut patterns = ps
                     .into_iter()
-                    .filter(|p| p.name.to_lowercase().contains(&search()))
+                    .filter(|p| p.name.to_lowercase().contains(&search.get()))
                     .collect::<Vec<_>>();
                 patterns.sort_by(match sort.get() {
                     Sort::NameAsc => by_name_asc,
@@ -56,14 +56,17 @@ pub fn PatternLibrary() -> impl IntoView {
                     Sort::SizeAsc => by_size_asc,
                     Sort::SizeDesc => by_size_desc,
                 });
-                patterns.into_iter().take(name_index()).collect::<Vec<_>>()
+                patterns
+                    .into_iter()
+                    .take(name_index.get())
+                    .collect::<Vec<_>>()
             })
             .unwrap_or_default()
     };
 
     Effect::new(move |_| {
         sort.get();
-        set_name_index(10);
+        set_name_index.set(10);
     });
 
     view! {
@@ -74,11 +77,11 @@ pub fn PatternLibrary() -> impl IntoView {
                     placeholder="Search..."
                     type="text"
                     on:input=move |e| {
-                        set_search(event_target_value(&e));
-                        set_name_index(10);
+                        set_search.set(event_target_value(&e));
+                        set_name_index.set(10);
                     }
 
-                    prop:value=search
+                    prop:value=search.get()
                 />
                 <Button
                     variant=ButtonVariant::Icon

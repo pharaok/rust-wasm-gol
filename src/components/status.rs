@@ -72,7 +72,11 @@ pub fn Status() -> impl IntoView {
                 <Divider />
                 <Item>
                     {move || {
-                        format!("{}, {}", cursor().0.floor() as i32, cursor().1.floor() as i32)
+                        format!(
+                            "{}, {}",
+                            cursor.get().0.floor() as i32,
+                            cursor.get().1.floor() as i32,
+                        )
                     }}
 
                 </Item>

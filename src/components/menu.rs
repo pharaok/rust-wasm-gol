@@ -23,7 +23,7 @@ pub fn Menu(
             <div class=move || {
                 format!(
                     "fixed inset-y-0 right-0 bg-neutral-900 text-white transition-transform transition-300 {}",
-                    if open() { "translate-x-0" } else { "translate-x-full" },
+                    if open.get() { "translate-x-0" } else { "translate-x-full" },
                 )
             }>{children()}</div>
 

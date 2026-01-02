@@ -26,7 +26,7 @@ pub fn LoadingCanvasProvider(children: Children) -> impl IntoView {
         if let Some(canvas) = canvas_ref.get() {
             let options = js_sys::Object::new();
             js_sys::Reflect::set(&options, &"alpha".into(), &false.into()).unwrap();
-            set_canvas(Some(create_2d_context(canvas, options)));
+            set_canvas.set(Some(create_2d_context(canvas, options)));
         }
     });
 
@@ -70,7 +70,7 @@ pub fn Loading() -> impl IntoView {
 
         let options = js_sys::Object::new();
         js_sys::Reflect::set(&options, &"alpha".into(), &false.into()).unwrap();
-        set_canvas(Some(create_2d_context(canvas, options)));
+        set_canvas.set(Some(create_2d_context(canvas, options)));
     });
 
     Effect::new(move |_| {
