@@ -115,7 +115,7 @@ pub fn App() -> impl IntoView {
     });
 
     view! {
-        <div class="relative w-screen h-screen">
+        <div class="absolute inset-0 w-screen h-screen">
             <div
                 on:contextmenu=move |ev| ev.prevent_default()
                 on:mousedown=move |ev| {
