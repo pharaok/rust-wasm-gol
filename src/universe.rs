@@ -287,6 +287,10 @@ impl Universe {
         let half = 1 << (level - 1);
         (x.rem_euclid(2 * half) - half, y.rem_euclid(2 * half) - half)
     }
+
+    pub fn clear(&mut self) {
+        self.root = self.empty_ref[self.get_level() as usize];
+    }
     fn _get(&self, x: i32, y: i32, node_ref: NodeRef) -> u8 {
         let node = self.arena.get(node_ref);
         let half = 1 << (node.level - 1);

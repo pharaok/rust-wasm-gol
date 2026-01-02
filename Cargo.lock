@@ -676,6 +676,8 @@ dependencies = [
  "leptos_router",
  "regex",
  "rustc-hash",
+ "serde",
+ "serde_json",
  "tailwind_fuse",
  "web-sys",
 ]

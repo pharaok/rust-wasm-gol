@@ -1,8 +1,11 @@
 pub mod rle {
     use regex::Regex;
+    use serde::{Deserialize, Serialize};
 
+    #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
     pub struct PatternMetadata {
-        pub name: Option<String>,
+        pub name: String,
+        pub path: String,
         pub comment: String,
         pub owner: Option<String>,
         pub width: usize,
@@ -10,14 +13,18 @@ pub mod rle {
         pub rule: String,
     }
 
-    pub fn parse_metadata(rle: &str) -> Result<(PatternMetadata, usize), ()> {
+    pub fn parse_metadata(
+        rle: &str,
+        name: &str,
+        path: &str,
+    ) -> Result<(PatternMetadata, usize), ()> {
         let section_re = Regex::new(r"(?m)^#([a-zA-Z])(.*)$").unwrap();
         let header_re = Regex::new(
             r"(?m)^\s*x\s*=\s*(\d+)\s*,?\s*y\s*=\s*(\d+)\s*(?:,?\s*rule\s*=\s*(\S+)\s*)?$",
         )
         .unwrap();
 
-        let mut name = None;
+        let mut name = name.to_owned();
         let mut comment = String::new();
         let mut owner = None;
         let mut rule = "23/3";
@@ -31,7 +38,7 @@ pub mod rle {
                     comment.push('\n');
                 }
                 "N" => {
-                    name = Some(line.trim().to_string());
+                    name = line.trim().to_string();
                 }
                 "O" => {
                     owner = Some(line.trim().to_string());
@@ -57,6 +64,7 @@ pub mod rle {
         Ok((
             PatternMetadata {
                 name,
+                path: path.to_owned(),
                 comment,
                 owner,
                 width,
@@ -69,7 +77,8 @@ pub mod rle {
     pub fn to_rect(rle: &str) -> Result<Vec<Vec<u8>>, ()> {
         let item_re = Regex::new(r"\s*(\d*)([a-zA-Z\$\!])").unwrap();
 
-        let (PatternMetadata { width, height, .. }, mut start) = parse_metadata(rle)?;
+        let (PatternMetadata { width, height, .. }, mut start) =
+            parse_metadata(rle, "Unnamed Pattern", "")?;
 
         let mut rect = vec![vec![0; width]; height];
         let (mut i, mut j) = (0, 0);

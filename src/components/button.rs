@@ -11,7 +11,7 @@ pub enum ButtonVariant {
 #[component]
 pub fn Button<F>(
     children: Children,
-    #[prop(into, optional)] class: Option<String>,
+    #[prop(into, optional)] class: TextProp,
     #[prop(default=ButtonVariant::Standard)] variant: ButtonVariant,
     on_press: F,
     #[prop(into, default = false.into())] disabled: Signal<bool>,
@@ -25,7 +25,7 @@ where
                 tw_merge!(
                     "transition text-white disabled:text-neutral-500 bg-neutral-900 enabled:hover:bg-neutral-800",
                     match variant { ButtonVariant::Standard => "rounded-md p-2", ButtonVariant::Icon
-                    => "flex justify-center items-center p-2", }, class.clone()
+                    => "flex justify-center items-center p-2", }, class.get().to_string()
                 )
             }
 

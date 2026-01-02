@@ -13,11 +13,11 @@ type LoadingContext = ReadSignal<Option<GolCanvas>, LocalStorage>;
 pub fn LoadingCanvasProvider(children: Children) -> impl IntoView {
     let canvas_ref = NodeRef::<html::Canvas>::new();
     let universe = StoredValue::new_local({
-        let mut u = Universe::with_size(5);
+        let mut u = Universe::with_size_and_arena_capacity(5, 0);
 
         let rle = include_str!("../../public/patterns/clock2.rle");
         let rect = rle::to_rect(rle).unwrap();
-        u.set_rect(-6, -6, &rect);
+        u.set_rect(-5, -5, &rect);
         u
     });
     let (canvas, set_canvas) = signal_local::<Option<GolCanvas>>(None);
@@ -64,7 +64,8 @@ pub fn Loading() -> impl IntoView {
     let canvas_ref = NodeRef::<html::Canvas>::new();
     let global_canvas = use_context::<LoadingContext>().unwrap();
     let (canvas, set_canvas) = signal_local::<Option<GolCanvas>>(None);
-    signal_local(move || {
+
+    Effect::new(move || {
         let canvas = canvas_ref.get().unwrap();
 
         let options = js_sys::Object::new();

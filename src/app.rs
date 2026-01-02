@@ -32,7 +32,7 @@ pub async fn fetch_pattern(name: String) -> Result<String, ()> {
     if name.is_empty() {
         return Err(());
     }
-    let url = format!("/patterns/{}.rle", name);
+    let url = format!("/patterns/{}", name);
     let resp = Request::get(&url).send().await.map_err(|_| ())?;
     resp.text().await.map_err(|_| ())
 }
@@ -71,12 +71,13 @@ pub fn App() -> impl IntoView {
             if let Ok(rect) = rle::to_rect(&rle) {
                 let (w, h) = (rect[0].len() as i32, rect.len() as i32);
                 set_universe.update(|u| {
+                    u.clear();
                     u.set_rect(-w / 2, -h / 2, &rect);
                 });
                 set_canvas.update(|gc| {
                     let gc = gc.as_mut().unwrap();
                     gc.fit_rect((-w / 2) as f64, (-h / 2) as f64, w as f64, h as f64);
-                    gc.zoom_at_center(0.8);
+                    gc.zoom_at_center(0.6);
                 });
             }
         }

@@ -128,4 +128,17 @@ impl GolCanvas {
             }
         };
     }
+    pub fn draw_rect(&self, top: f64, left: f64, width: f64, height: f64, rect: Vec<Vec<u8>>) {
+        self.ctx.set_fill_style_str("white");
+        let w = width / rect.len() as f64;
+        let h = height / rect[0].len() as f64;
+
+        for (y, row) in rect.iter().enumerate() {
+            for (x, cell) in row.iter().enumerate() {
+                if *cell == 1 {
+                    self.fill_rect(left + w * x as f64, top + h * y as f64, width, height);
+                }
+            }
+        }
+    }
 }

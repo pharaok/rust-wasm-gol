@@ -1,59 +1,52 @@
-use leptos::prelude::*;
+use leptos::{logging, prelude::*};
 use leptos_router::components::*;
 
 use crate::{
     app::fetch_pattern,
-    components::{Loading, Text},
+    components::{Canvas, Loading, Text},
+    draw::GolCanvas,
     parse::rle::{self, PatternMetadata},
 };
 
 #[component]
-pub fn PatternCard(#[prop(into)] name: String) -> impl IntoView {
-    let value = name.clone(); // HACK: ?
-    let pattern_rle = LocalResource::new(move || fetch_pattern(value.clone()));
-    let pattern_metadata = move || {
-        pattern_rle
-            .get()
-            .map(|resp| resp.and_then(|rle| rle::parse_metadata(rle.as_ref())))
-    };
+pub fn PatternCard(#[prop(into)] pattern: Signal<PatternMetadata, LocalStorage>) -> impl IntoView {
+    let pattern_rle = LocalResource::new(move || fetch_pattern(pattern.get().name));
+
+    let (canvas, set_canvas) = signal_local::<Option<GolCanvas>>(None);
+    // Effect::new(move |_| {
+    //     if let Some(Ok(rle)) = pattern_rle.get() {
+    //         let rect = rle::to_rect(&rle).unwrap();
+    //         logging::log!("{:?}", rect);
+    //         if let Some(gc) = canvas.get() {
+    //             gc.draw_rect(0.0, 0.0, 100.0, 100.0, rect);
+    //             logging::log!("here");
+    //         }
+    //     }
+    // });
 
     view! {
         <div class="rounded-md bg-neutral-800 w-64 p-2">
-            {move || {
-                if let Some(
-                    Ok((PatternMetadata { name: title, comment, owner, width, height, .. }, _)),
-                ) = pattern_metadata() {
-                    view! {
-                        <A href=format!("/{}", name.clone())>
-                            <h2 class="text-lg font-bold w-full text-center truncate">
-                                {title.unwrap_or("No title".to_string())}
-                            </h2>
-                            <div class="w-full aspect-square flex justify-center items-center bg-black">
-                                <Loading />
-                            </div>
-                        </A>
-                        <div class="overflow-hidden">
-                            <Text text=comment />
-                        </div>
-                        <div class="w-full">
-                            {owner.map(|o| view! { <p>{format!("Author: {}", o)}</p> })}
-                            <p>{format!("Size: {}x{}", width, height)}</p>
-                        </div>
-                    }
-                        .into_view();
-                } else {
-                    view! {
-                        <h2 class="text-lg font-bold w-full text-center truncate">
-                            {name.clone()}
-                        </h2>
-                        <div class="w-full aspect-square flex justify-center items-center bg-black">
-                            <Loading />
-                        </div>
-                    }
-                        .into_view();
-                }
-            }}
+            <A href=format!("/{}", pattern.get().path)>
+                <h2 class="text-lg font-bold w-full text-center truncate">{pattern.get().name}</h2>
+                <div class="relative w-full aspect-square flex justify-center items-center bg-black">
+                    <Show
+                        when=move || true
 
+                        fallback=move || {
+                            view! { <Loading /> }
+                        }
+                    >
+                        <Loading />
+                    </Show>
+                </div>
+            </A>
+            <div class="overflow-hidden">
+                <Text text=pattern.get().comment />
+            </div>
+            <div class="w-full">
+                {pattern.get().owner.map(|o| view! { <p>{format!("Author: {}", o)}</p> })}
+                <p>{format!("Size: {}x{}", pattern.get().width, pattern.get().height)}</p>
+            </div>
         </div>
     }
 }
