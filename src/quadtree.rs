@@ -85,7 +85,7 @@ impl Node {
         }
     }
 
-    pub fn get_child(&self, x: i32, y: i32) -> NodeRef {
+    pub fn get_child(&self, x: i64, y: i64) -> NodeRef {
         match self.data {
             NodeKind::Branch([nw, ne, sw, se]) => match (x < 0, y < 0) {
                 (true, true) => nw,
@@ -96,7 +96,7 @@ impl Node {
             NodeKind::Leaf(_) => panic!(),
         }
     }
-    pub fn get_child_mut(&mut self, x: i32, y: i32) -> &mut NodeRef {
+    pub fn get_child_mut(&mut self, x: i64, y: i64) -> &mut NodeRef {
         match &mut self.data {
             NodeKind::Branch([nw, ne, sw, se]) => match (x < 0, y < 0) {
                 (true, true) => nw,
@@ -106,11 +106,6 @@ impl Node {
             },
             NodeKind::Leaf(_) => panic!(),
         }
-    }
-    pub fn to_child_coords(&self, x: i32, y: i32) -> (i32, i32) {
-        let quarter = 1 << (self.level - 2);
-        let half = quarter << 1;
-        (x.rem_euclid(half) - quarter, y.rem_euclid(half) - quarter)
     }
 
     pub fn is_leaf(&self) -> bool {

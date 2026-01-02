@@ -93,7 +93,7 @@ impl GolCanvas {
             return;
         }
 
-        let half = (1 << (node.level - 1)) as f64;
+        let half = (1i64 << (node.level - 1)) as f64;
         let (bottom, right) = (top + 2.0 * half, left + 2.0 * half);
         if bottom < 0.0 || right < 0.0 || top > self.height() || left > self.width() {
             return;
@@ -102,7 +102,9 @@ impl GolCanvas {
         if 2.0 * half * self.cell_size < 2.0 {
             self.ctx.set_fill_style_str(&format!(
                 "rgba(255, 255, 255, {})",
-                (node.population as f64 / (4.0 * half * half)).sqrt().sqrt() // HACK:
+                (node.population as f64 / (4.0 * half * half))
+                    .ln_1p()
+                    .max(0.5)
             ));
             self.fill_rect(left, top, 2.0 * half, 2.0 * half);
             return;

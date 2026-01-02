@@ -1,7 +1,9 @@
 use crate::{
     arena::Arena,
+    parse::rle::{self, PatternMetadata},
     quadtree::{Branch, Leaf, Node, NodeKind, NodeRef, LEAF_LEVEL, LEAF_SIZE},
 };
+use regex::Regex;
 use rustc_hash::FxHashMap;
 
 type Key = (NodeKind, i32); // (node, generations)
@@ -107,11 +109,11 @@ impl Universe {
 
         let new_node = if l == LEAF_LEVEL + 1 {
             let mut data = Leaf::default();
-            let h = (LEAF_SIZE / 2) as i32;
+            let h = (LEAF_SIZE / 2) as i64;
             let mut pop = 0;
             for (y, row) in data.iter_mut().enumerate() {
                 for (x, cell) in row.iter_mut().enumerate() {
-                    *cell = self._get(x as i32 - h, y as i32 - h, node_ref);
+                    *cell = self._get(x as i64 - h, y as i64 - h, node_ref);
                     pop += *cell as u64;
                 }
             }
@@ -139,7 +141,7 @@ impl Universe {
         let step = self.step.min((self.arena.get(self.root).level - 2) as i32);
         let root_ref = self.grown(self.root);
         let next = self.step_node(root_ref, self.step).0;
-        self.generation += (1 << step) as u64;
+        self.generation += 1u64 << step;
         self.root = next;
     }
 
@@ -283,19 +285,18 @@ impl Universe {
         (new_node, population)
     }
 
-    pub fn normalize_coords(x: i32, y: i32, level: u8) -> (i32, i32) {
-        let half = 1 << (level - 1);
+    pub fn normalize_coords(x: i64, y: i64, level: u8) -> (i64, i64) {
+        let half = 1i64 << (level - 1);
         (x.rem_euclid(2 * half) - half, y.rem_euclid(2 * half) - half)
     }
 
     pub fn clear(&mut self) {
         self.root = self.empty_ref[self.get_level() as usize];
     }
-    fn _get(&self, x: i32, y: i32, node_ref: NodeRef) -> u8 {
+    fn _get(&self, x: i64, y: i64, node_ref: NodeRef) -> u8 {
         let node = self.arena.get(node_ref);
-        let half = 1 << (node.level - 1);
+        let half = 1i64 << (node.level - 1);
         if !(-half <= x && x < half && -half <= y && y < half) {
-            // TODO: out of bounds
             return 0;
         }
 
@@ -306,14 +307,14 @@ impl Universe {
             self._get(cx, cy, node.get_child(x, y))
         }
     }
-    pub fn get(&self, x: i32, y: i32) -> u8 {
+    pub fn get(&self, x: i64, y: i64) -> u8 {
         self._get(x, y, self.root)
     }
-    fn _set(&mut self, x: i32, y: i32, value: u8, node_ref: NodeRef) -> (NodeRef, i64) {
+    fn _set(&mut self, x: i64, y: i64, value: u8, node_ref: NodeRef) -> (NodeRef, i64) {
         let mut node = *self.arena.get(node_ref);
         let mut dpop = 0;
         if node.is_leaf() {
-            let s = (LEAF_SIZE / 2) as i32;
+            let s = (LEAF_SIZE / 2) as i64;
             let data = node.data.as_leaf_mut();
             dpop -= data[(y + s) as usize][(x + s) as usize] as i64;
             data[(y + s) as usize][(x + s) as usize] = value;
@@ -333,13 +334,13 @@ impl Universe {
         node.population = (node.population as i64 + dpop) as u64;
         (self.arena.insert(node), dpop)
     }
-    pub fn set(&mut self, x: i32, y: i32, value: u8) {
+    pub fn set(&mut self, x: i64, y: i64, value: u8) {
         self.root = self._set(x, y, value, self.root).0;
         self.generation = 0
     }
 
-    pub fn get_rect(&self, x1: i32, y1: i32, x2: i32, y2: i32) -> Vec<Vec<u8>> {
-        let half = 1 << (self.get_level() - 1);
+    pub fn get_rect(&self, x1: i64, y1: i64, x2: i64, y2: i64) -> Vec<Vec<u8>> {
+        let half = 1i64 << (self.get_level() - 1);
         let (x1, y1, x2, y2) = (x1.max(-half), y1.max(-half), x2.min(half), y2.min(half));
 
         let (w, h) = ((x2 - x1) as usize, (y2 - y1) as usize);
@@ -351,15 +352,15 @@ impl Universe {
     }
     fn _get_rect(
         &self,
-        x1: i32,
-        y1: i32,
-        x2: i32,
-        y2: i32,
+        x1: i64,
+        y1: i64,
+        x2: i64,
+        y2: i64,
         grid: &mut Vec<Vec<u8>>,
         node_ref: NodeRef,
     ) {
         let node = self.arena.get(node_ref);
-        let half = 1 << (node.level - 1);
+        let half = 1i64 << (node.level - 1);
         if x1 >= half || y1 >= half || x2 < -half || y2 < -half || node.population == 0 {
             return;
         }
@@ -372,7 +373,7 @@ impl Universe {
                 }
                 for (i, row) in v.iter().enumerate() {
                     for (j, cell) in row.iter().enumerate() {
-                        let (x, y) = ((j as i32 - x1 - 1) as usize, (i as i32 - y1 - 1) as usize);
+                        let (x, y) = ((j as i64 - x1 - 1) as usize, (i as i64 - y1 - 1) as usize);
                         if x < w && y < h {
                             grid[y][x] = *cell;
                         }
@@ -380,7 +381,7 @@ impl Universe {
                 }
             }
             NodeKind::Branch([nw, ne, sw, se]) => {
-                let q = 1 << (node.level - 2);
+                let q = 1i64 << (node.level - 2);
                 self._get_rect(x1 + q, y1 + q, x2 + q, y2 + q, grid, nw);
                 self._get_rect(x1 - q, y1 + q, x2 - q, y2 + q, grid, ne);
                 self._get_rect(x1 + q, y1 - q, x2 + q, y2 - q, grid, sw);
@@ -388,21 +389,21 @@ impl Universe {
             }
         }
     }
-    pub fn set_rect(&mut self, x: i32, y: i32, grid: &Vec<Vec<u8>>) {
+    pub fn set_rect(&mut self, x: i64, y: i64, grid: &Vec<Vec<u8>>) {
         self.root = self._set_rect(x, y, grid, self.root).0;
     }
     fn _set_rect(
         &mut self,
-        x: i32,
-        y: i32,
+        x: i64,
+        y: i64,
         grid: &Vec<Vec<u8>>,
         node_ref: NodeRef,
     ) -> (NodeRef, u64) {
         let node = *self.arena.get(node_ref);
-        let half = 1 << (node.level - 1);
+        let half = 1i64 << (node.level - 1);
         let (w, h) = (grid[0].len(), grid.len());
 
-        if x >= half || y >= half || x + (w as i32) < -half || y + (h as i32) < -half {
+        if x >= half || y >= half || x + (w as i64) < -half || y + (h as i64) < -half {
             return (node_ref, 0);
         }
 
@@ -411,7 +412,7 @@ impl Universe {
             let mut pop = 0;
             for (i, row) in new_data.iter_mut().enumerate() {
                 for (j, cell) in row.iter_mut().enumerate() {
-                    let (x, y) = ((j as i32 - x - 1) as usize, (i as i32 - y - 1) as usize);
+                    let (x, y) = ((j as i64 - x - 1) as usize, (i as i64 - y - 1) as usize);
                     if x < w && y < h {
                         *cell = grid[y][x];
                     }
@@ -422,7 +423,7 @@ impl Universe {
             return (self.arena.insert(new_node), new_node.population);
         }
         let [nw, ne, sw, se] = node.data.as_branch();
-        let q = 1 << (node.level - 2);
+        let q = 1i64 << (node.level - 2);
 
         let (new_nw, nw_pop) = self._set_rect(x + q, y + q, grid, *nw);
         let (new_ne, ne_pop) = self._set_rect(x - q, y + q, grid, *ne);
@@ -434,5 +435,33 @@ impl Universe {
             nw_pop + ne_pop + sw_pop + se_pop,
         );
         (self.arena.insert(new_node), new_node.population)
+    }
+    pub fn set_rle(&mut self, x: i64, y: i64, rle: &str) {
+        let item_re = Regex::new(r"\s*(\d*)([a-zA-Z\$\!])").unwrap();
+        let (PatternMetadata { .. }, mut start) =
+            rle::parse_metadata(rle, "Unnamed Pattern", "").unwrap();
+
+        let (mut i, mut j) = (y, x);
+        while let Some(c) = item_re.captures_at(rle, start) {
+            let (_, [count_str, tag]) = c.extract();
+            let count = count_str.parse().unwrap_or(1);
+            start = c.get(0).unwrap().end();
+            match tag {
+                "!" => break,
+                "$" => {
+                    i += count;
+                    j = x;
+                }
+                _ => {
+                    for jj in 0..count {
+                        match tag {
+                            "b" | "B" => {}
+                            _ => self.set(j + jj, i, 1),
+                        };
+                    }
+                    j += count;
+                }
+            }
+        }
     }
 }
