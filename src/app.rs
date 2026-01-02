@@ -1,15 +1,14 @@
-use gloo_net::http::Request;
-use leptos::prelude::*;
-use leptos_router::hooks::*;
-use leptos_router::params::Params;
-use leptos_use::use_raf_fn;
-
 use crate::{
     components::{Canvas, Controls, Menu, MenuTrigger, PatternLibrary, Status},
     draw::GolCanvas,
     parse::rle::{self, PatternMetadata},
     universe::Universe,
 };
+use gloo_net::http::Request;
+use leptos::prelude::*;
+use leptos_router::hooks::*;
+use leptos_router::params::Params;
+use leptos_use::use_raf_fn;
 
 #[derive(Params, PartialEq)]
 pub struct GolParams {
@@ -39,8 +38,10 @@ pub async fn fetch_pattern(name: String) -> Result<String, ()> {
 
 #[component]
 pub fn App() -> impl IntoView {
+    // WARN: a large Universe results in catastrophic cancellation in
+    // draw_node, which causes issues with rendering and panning.
     let (universe, set_universe) =
-        signal_local(Universe::with_size_and_arena_capacity(60, 1 << 24));
+        signal_local(Universe::with_size_and_arena_capacity(50, 1 << 24));
     let (canvas, set_canvas) = signal_local::<Option<GolCanvas>>(None);
     let (cursor, set_cursor) = signal_local((0.0, 0.0));
     let (is_ticking, set_is_ticking) = signal_local(false);

@@ -1,11 +1,9 @@
+use super::create_2d_context;
+use crate::{draw::GolCanvas, parse::rle, universe::Universe};
 use leptos::html;
 use leptos::prelude::*;
 use leptos_use::use_raf_fn;
 use web_sys::js_sys;
-
-use crate::{draw::GolCanvas, parse::rle, universe::Universe};
-
-use super::create_2d_context;
 
 type LoadingContext = ReadSignal<Option<GolCanvas>, LocalStorage>;
 

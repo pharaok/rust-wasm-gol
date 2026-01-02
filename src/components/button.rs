@@ -29,7 +29,7 @@ where
                 )
             }
 
-            disabled=disabled.get()
+            disabled=move || disabled.get()
             on:click=move |_| {
                 on_press();
             }

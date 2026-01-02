@@ -1,16 +1,15 @@
-use leptos::{logging, prelude::*};
-use leptos_router::components::*;
-
 use crate::{
     app::fetch_pattern,
     components::{Canvas, Loading, Text},
     draw::GolCanvas,
     parse::rle::{self, PatternMetadata},
 };
+use leptos::{logging, prelude::*};
+use leptos_router::components::*;
 
 #[component]
 pub fn PatternCard(#[prop(into)] pattern: Signal<PatternMetadata, LocalStorage>) -> impl IntoView {
-    let pattern_rle = LocalResource::new(move || fetch_pattern(pattern.get().name));
+    let pattern_rle = LocalResource::new(move || fetch_pattern(pattern.get().path));
 
     let (canvas, set_canvas) = signal_local::<Option<GolCanvas>>(None);
     // Effect::new(move |_| {

@@ -1,9 +1,8 @@
-use web_sys::CanvasRenderingContext2d;
-
 use crate::{
     quadtree::{NodeKind, NodeRef},
     universe::Universe,
 };
+use web_sys::CanvasRenderingContext2d;
 
 pub const DEFAULT_CELL_SIZE: f64 = 20.0;
 
@@ -102,9 +101,7 @@ impl GolCanvas {
         if 2.0 * half * self.cell_size < 2.0 {
             self.ctx.set_fill_style_str(&format!(
                 "rgba(255, 255, 255, {})",
-                (node.population as f64 / (4.0 * half * half))
-                    .ln_1p()
-                    .max(0.5)
+                (node.population as f64 / (4.0 * half * half)).max(0.5)
             ));
             self.fill_rect(left, top, 2.0 * half, 2.0 * half);
             return;
@@ -113,11 +110,10 @@ impl GolCanvas {
         self.ctx.set_fill_style_str("white");
         match &node.data {
             NodeKind::Leaf(leaf) => {
-                // guaranteed to be at leaf level
-                for (i, row) in leaf.iter().enumerate() {
-                    for (j, cell) in row.iter().enumerate() {
+                for (y, row) in leaf.iter().enumerate() {
+                    for (x, cell) in row.iter().enumerate() {
                         if *cell != 0 {
-                            self.fill_rect(left + j as f64, top + i as f64, 1.0, 1.0);
+                            self.fill_rect(left + x as f64, top + y as f64, 1.0, 1.0);
                         }
                     }
                 }

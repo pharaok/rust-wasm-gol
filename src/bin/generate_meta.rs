@@ -1,7 +1,6 @@
+use gol::parse::rle;
 use std::fs;
 use std::io::Write;
-
-use gol::parse::rle;
 
 fn main() {
     let mut patterns = Vec::new();
