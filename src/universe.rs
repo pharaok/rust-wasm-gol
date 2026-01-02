@@ -3,7 +3,6 @@ use crate::{
     parse::rle::{self, PatternMetadata},
     quadtree::{Branch, Leaf, Node, NodeKind, NodeRef, LEAF_LEVEL, LEAF_SIZE},
 };
-use leptos::logging;
 use regex::Regex;
 use rustc_hash::FxHashMap;
 
@@ -336,7 +335,6 @@ impl Universe {
         (self.arena.insert(node), dpop)
     }
     pub fn set(&mut self, x: i64, y: i64, value: u8) {
-        logging::log!("set {} {}", x, y);
         self.root = self._set(x, y, value, self.root).0;
         self.generation = 0
     }

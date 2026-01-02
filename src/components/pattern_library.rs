@@ -3,6 +3,7 @@ use crate::components::ButtonVariant;
 use crate::parse::rle::PatternMetadata;
 use gloo_net::http::Request;
 use leptos::html;
+use leptos::logging;
 use leptos::prelude::*;
 use leptos_use::{use_infinite_scroll_with_options, UseInfiniteScrollOptions};
 
@@ -25,11 +26,17 @@ pub fn PatternLibrary() -> impl IntoView {
         },
         UseInfiniteScrollOptions::default().distance(200.0),
     );
-    let (search, set_search) = signal(String::new());
+    let (search, set_search) = signal_local(String::new());
 
-    let patterns = LocalResource::new(move || async {
+    let (patterns, set_patterns) = signal_local(None);
+    let patterns_res = LocalResource::new(move || async {
         let resp = Request::get("/patterns.json").send().await.unwrap();
         resp.json::<Vec<PatternMetadata>>().await.unwrap()
+    });
+    Effect::new(move |_| {
+        if let Some(p) = patterns_res.get() {
+            set_patterns.set(Some(p));
+        }
     });
 
     let (sort, set_sort) = signal_local(Sort::NameAsc);
@@ -42,36 +49,35 @@ pub fn PatternLibrary() -> impl IntoView {
         (b.width as u128 * b.height as u128).cmp(&(a.width as u128 * a.height as u128))
     };
 
-    let shown = move || {
-        patterns
-            .get()
-            .map(|ps| {
-                let mut patterns = ps
-                    .into_iter()
-                    .filter(|p| p.name.to_lowercase().contains(&search.get()))
-                    .collect::<Vec<_>>();
-                patterns.sort_by(match sort.get() {
+    Effect::new(move |_| {
+        sort.get();
+        set_patterns.update(|p| {
+            if let Some(v) = p {
+                v.sort_by(match sort.get() {
                     Sort::NameAsc => by_name_asc,
                     Sort::NameDesc => by_name_desc,
                     Sort::SizeAsc => by_size_asc,
                     Sort::SizeDesc => by_size_desc,
                 });
-                patterns
-                    .into_iter()
+                set_name_index.set(10);
+            }
+        });
+    });
+    let shown = move || {
+        patterns
+            .get()
+            .map(|ps| {
+                ps.into_iter()
+                    .filter(|p| p.name.to_lowercase().contains(&search.get()))
                     .take(name_index.get())
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default()
     };
 
-    Effect::new(move |_| {
-        sort.get();
-        set_name_index.set(10);
-    });
-
     view! {
         <div node_ref=div_ref class="h-screen overflow-y-scroll p-1 flex flex-col gap-1">
-            <div class="w-full flex gap-1">
+            <div class="w-64 flex gap-1">
                 <input
                     class="w-0 flex-1 rounded-md bg-neutral-800"
                     placeholder="Search..."
