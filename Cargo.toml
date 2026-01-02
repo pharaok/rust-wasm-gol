@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+rustc-hash = "2.1.1"
 console_error_panic_hook = "0.1.7"
 gloo-net = "0.6.0"
 icondata = "0.6.0"

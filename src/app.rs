@@ -69,17 +69,15 @@ pub fn App() -> impl IntoView {
         // the server will always return 200 OK since this is a SPA
         if let Some(Ok(rle)) = pattern_rle.get() {
             if let Ok(rect) = rle::to_rect(&rle) {
-                // let (w, h) = (rect[0].len() as i32, rect.len() as i32);
-                // set_universe.update(|u| {
-                //     let mut root = u.root.borrow_mut();
-                //     *root = Node::new_branch(root.level);
-                //     root.set_rect(-w / 2, -h / 2, &rect);
-                // });
-                // set_canvas.update(|gc| {
-                //     let gc = gc.as_mut().unwrap();
-                //     gc.fit_rect((-w / 2) as f64, (-h / 2) as f64, w as f64, h as f64);
-                //     gc.zoom_at_center(0.8);
-                // });
+                let (w, h) = (rect[0].len() as i32, rect.len() as i32);
+                set_universe.update(|u| {
+                    u.set_rect(-w / 2, -h / 2, &rect);
+                });
+                set_canvas.update(|gc| {
+                    let gc = gc.as_mut().unwrap();
+                    gc.fit_rect((-w / 2) as f64, (-h / 2) as f64, w as f64, h as f64);
+                    gc.zoom_at_center(0.8);
+                });
             }
         }
     });

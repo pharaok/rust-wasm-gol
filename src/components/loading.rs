@@ -13,11 +13,11 @@ type LoadingContext = ReadSignal<Option<GolCanvas>, LocalStorage>;
 pub fn LoadingCanvasProvider(children: Children) -> impl IntoView {
     let canvas_ref = NodeRef::<html::Canvas>::new();
     let universe = StoredValue::new_local({
-        let u = Universe::with_size(5);
+        let mut u = Universe::with_size(5);
 
         let rle = include_str!("../../public/patterns/clock2.rle");
         let rect = rle::to_rect(rle).unwrap();
-        // u.root.borrow_mut().set_rect(-6, -6, &rect);
+        u.set_rect(-6, -6, &rect);
         u
     });
     let (canvas, set_canvas) = signal_local::<Option<GolCanvas>>(None);

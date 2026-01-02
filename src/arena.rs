@@ -1,5 +1,5 @@
+use rustc_hash::FxHashMap;
 use std::cmp::Eq;
-use std::collections::HashMap;
 use std::hash::Hash;
 
 type Size = u32;
@@ -10,7 +10,7 @@ where
     T: Clone,
 {
     vec: Vec<T>,
-    cache: HashMap<K, Size>,
+    cache: FxHashMap<K, Size>,
     size: Size,
 }
 
@@ -20,9 +20,11 @@ where
     T: Clone,
 {
     pub fn new(size: usize) -> Self {
+        let mut cache = FxHashMap::default();
+        cache.reserve(size);
         Self {
             vec: Vec::with_capacity(size),
-            cache: HashMap::new(), // TODO: should probably be with_capacity
+            cache,
             size: 0,
         }
     }
