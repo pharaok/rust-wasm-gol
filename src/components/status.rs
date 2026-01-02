@@ -60,9 +60,7 @@ pub fn Status() -> impl IntoView {
                 <Divider />
                 <Item>{move || format!("Gen: {}", universe.with(|u| u.generation))}</Item>
                 <Divider />
-                <Item>
-                    {move || format!("Pop: {}", universe.with(|u| u.root.borrow().population))}
-                </Item>
+                <Item>{move || format!("Pop: {}", universe.with(|u| u.get_population()))}</Item>
                 <Divider />
                 <Item on_press=Box::new(move || {
                     set_canvas

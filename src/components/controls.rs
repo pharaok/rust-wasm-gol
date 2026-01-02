@@ -63,12 +63,11 @@ pub fn Controls() -> impl IntoView {
             <Button
                 variant=ButtonVariant::Icon
                 disabled=Signal::derive(move || {
-                    universe.with(|u| u.step >= u.root.borrow().level as i32 - 2)
+                    universe.with(|u| u.step >= u.get_level() as i32 - 2)
                 })
 
                 on_press=move || {
-                    set_universe
-                        .update(|u| { u.step = (u.step + 1).min(u.root.borrow().level as i32 - 2) })
+                    set_universe.update(|u| { u.step = (u.step + 1).min(u.get_level() as i32 - 2) })
                 }
             >
 

@@ -1,6 +1,9 @@
 use web_sys::CanvasRenderingContext2d;
 
-use crate::quadtree::{Node, NodeKind};
+use crate::{
+    quadtree::{NodeKind, NodeRef},
+    universe::Universe,
+};
 
 pub const DEFAULT_CELL_SIZE: f64 = 20.0;
 
@@ -84,7 +87,8 @@ impl GolCanvas {
         );
         self.ctx.fill_rect(x, y, actual_width, actual_height);
     }
-    pub fn draw_node(&self, node: &Node, top: f64, left: f64) {
+    pub fn draw_node(&self, universe: &Universe, node_ref: NodeRef, top: f64, left: f64) {
+        let node = universe.arena.get(node_ref);
         if node.population == 0 {
             return;
         }
@@ -98,14 +102,14 @@ impl GolCanvas {
         if 2.0 * half * self.cell_size < 2.0 {
             self.ctx.set_fill_style_str(&format!(
                 "rgba(255, 255, 255, {})",
-                (node.population as f64 / (4.0 * half * half)).sqrt().sqrt()
+                (node.population as f64 / (4.0 * half * half)).sqrt().sqrt() // HACK:
             ));
             self.fill_rect(left, top, 2.0 * half, 2.0 * half);
             return;
         }
 
         self.ctx.set_fill_style_str("white");
-        match &node.node {
+        match &node.data {
             NodeKind::Leaf(leaf) => {
                 // guaranteed to be at leaf level
                 for (i, row) in leaf.iter().enumerate() {
@@ -117,10 +121,10 @@ impl GolCanvas {
                 }
             }
             NodeKind::Branch([nw, ne, sw, se]) => {
-                self.draw_node(&nw.borrow(), top, left);
-                self.draw_node(&ne.borrow(), top, left + half);
-                self.draw_node(&sw.borrow(), top + half, left);
-                self.draw_node(&se.borrow(), top + half, left + half);
+                self.draw_node(universe, *nw, top, left);
+                self.draw_node(universe, *ne, top, left + half);
+                self.draw_node(universe, *sw, top + half, left);
+                self.draw_node(universe, *se, top + half, left + half);
             }
         };
     }

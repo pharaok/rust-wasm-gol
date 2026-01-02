@@ -8,7 +8,6 @@ use crate::{
     components::{Canvas, Controls, Menu, MenuTrigger, PatternLibrary, Status},
     draw::GolCanvas,
     parse::rle,
-    quadtree::Node,
     universe::Universe,
 };
 
@@ -40,7 +39,8 @@ pub async fn fetch_pattern(name: String) -> Result<String, ()> {
 
 #[component]
 pub fn App() -> impl IntoView {
-    let (universe, set_universe) = signal_local(Universe::default());
+    let (universe, set_universe) =
+        signal_local(Universe::with_size_and_arena_capacity(16, 1 << 24));
     let (canvas, set_canvas) = signal_local::<Option<GolCanvas>>(None);
     let (cursor, set_cursor) = signal_local((0.0, 0.0));
     let (is_ticking, set_is_ticking) = signal_local(false);
@@ -69,17 +69,17 @@ pub fn App() -> impl IntoView {
         // the server will always return 200 OK since this is a SPA
         if let Some(Ok(rle)) = pattern_rle.get() {
             if let Ok(rect) = rle::to_rect(&rle) {
-                let (w, h) = (rect[0].len() as i32, rect.len() as i32);
-                set_universe.update(|u| {
-                    let mut root = u.root.borrow_mut();
-                    *root = Node::new(root.level);
-                    root.set_rect(-w / 2, -h / 2, &rect);
-                });
-                set_canvas.update(|gc| {
-                    let gc = gc.as_mut().unwrap();
-                    gc.fit_rect((-w / 2) as f64, (-h / 2) as f64, w as f64, h as f64);
-                    gc.zoom_at_center(0.8);
-                });
+                // let (w, h) = (rect[0].len() as i32, rect.len() as i32);
+                // set_universe.update(|u| {
+                //     let mut root = u.root.borrow_mut();
+                //     *root = Node::new_branch(root.level);
+                //     root.set_rect(-w / 2, -h / 2, &rect);
+                // });
+                // set_canvas.update(|gc| {
+                //     let gc = gc.as_mut().unwrap();
+                //     gc.fit_rect((-w / 2) as f64, (-h / 2) as f64, w as f64, h as f64);
+                //     gc.zoom_at_center(0.8);
+                // });
             }
         }
     });
@@ -97,9 +97,9 @@ pub fn App() -> impl IntoView {
             let gc = gc.as_ref().unwrap();
             gc.clear();
             universe.with(|u| {
-                let root = u.root.borrow();
+                let root = u.arena.get(u.root);
                 let half = (1 << (root.level - 1)) as f64;
-                gc.draw_node(&root, -half - gc.origin.1, -half - gc.origin.0);
+                gc.draw_node(u, u.root, -half - gc.origin.1, -half - gc.origin.0);
             });
         });
     });
@@ -118,8 +118,8 @@ pub fn App() -> impl IntoView {
                             set_universe
                                 .update(|u| {
                                     let (x, y) = (x.floor() as i32, y.floor() as i32);
-                                    let v = u.root.borrow().get(x, y);
-                                    u.insert(x, y, v ^ 1);
+                                    let v = u.get(x, y);
+                                    u.set(x, y, v ^ 1);
                                 });
                         }
                         1 => {

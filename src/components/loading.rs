@@ -17,7 +17,7 @@ pub fn LoadingCanvasProvider(children: Children) -> impl IntoView {
 
         let rle = include_str!("../../public/patterns/clock2.rle");
         let rect = rle::to_rect(rle).unwrap();
-        u.root.borrow_mut().set_rect(-6, -6, &rect);
+        // u.root.borrow_mut().set_rect(-6, -6, &rect);
         u
     });
     let (canvas, set_canvas) = signal_local::<Option<GolCanvas>>(None);
@@ -44,9 +44,8 @@ pub fn LoadingCanvasProvider(children: Children) -> impl IntoView {
                 gc.fit_rect(-6.0, -6.0, 12.0, 12.0);
                 gc.clear();
                 universe.with_value(|u| {
-                    let root = u.root.borrow();
-                    let half = (1 << (root.level - 1)) as f64;
-                    gc.draw_node(&root, -half - gc.origin.1, -half - gc.origin.0);
+                    let half = (1 << (u.get_level() - 1)) as f64;
+                    gc.draw_node(u, u.root, -half - gc.origin.1, -half - gc.origin.0);
                 });
             });
         }
