@@ -55,7 +55,7 @@ pub fn Status() -> impl IntoView {
                 <Item>{move || pattern_name}</Item>
             </div>
             <div class="inline-flex">
-                <Item>{move || format!("Step: {}", 1 << universe.with(|u| u.step))}</Item>
+                <Item>{move || format!("Step: {}", 1i64 << universe.with(|u| u.step))}</Item>
                 <Divider />
                 <Item>{move || format!("Gen: {}", universe.with(|u| u.generation))}</Item>
                 <Divider />
@@ -73,8 +73,8 @@ pub fn Status() -> impl IntoView {
                     {move || {
                         format!(
                             "{}, {}",
-                            cursor.get().0.floor() as i32,
-                            cursor.get().1.floor() as i32,
+                            cursor.get().0.floor() as i64,
+                            cursor.get().1.floor() as i64,
                         )
                     }}
 

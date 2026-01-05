@@ -5,7 +5,7 @@ use crate::{
     universe::Universe,
 };
 use gloo_net::http::Request;
-use leptos::prelude::*;
+use leptos::{logging, prelude::*};
 use leptos_router::hooks::*;
 use leptos_router::params::Params;
 use leptos_use::use_raf_fn;
@@ -37,7 +37,7 @@ pub async fn fetch_pattern(name: String) -> Result<String, ()> {
 }
 
 #[component]
-pub fn App() -> impl IntoView {
+pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
     // WARN: a large Universe results in catastrophic cancellation in
     // draw_node, which causes issues with rendering and panning.
     let (universe, set_universe) =
@@ -65,6 +65,22 @@ pub fn App() -> impl IntoView {
     let pattern_name =
         move || params.with(|p| p.as_ref().unwrap().name.clone().unwrap_or_default());
     let pattern_rle = LocalResource::new(move || fetch_pattern(pattern_name()));
+
+    let meta_on_rle = if meta {
+        Some(LocalResource::new(move || {
+            fetch_pattern("otcametapixelonb3s23.rle".to_owned())
+        }))
+    } else {
+        None
+    };
+    let meta_off_rle = if meta {
+        Some(LocalResource::new(move || {
+            fetch_pattern("otcametapixeloffb3s23.rle".to_owned())
+        }))
+    } else {
+        None
+    };
+
     Effect::new(move |_| {
         // pattern_rle will never actually be Some(Err) because
         // the server will always return 200 OK since this is a SPA
@@ -77,17 +93,28 @@ pub fn App() -> impl IntoView {
                 },
                 _,
             ) = rle::parse_metadata(&rle, "Unnamed Pattern", "").unwrap();
+            let (mut actual_top, mut actual_left, mut actual_width, mut actual_height) =
+                ((-(w as i64) / 2), (-(h as i64) / 2), w as i64, h as i64);
             set_universe.update(|u| {
                 u.clear();
-                u.set_rle(-(w as i64) / 2, -(h as i64) / 2, &rle);
+                if meta {
+                    if let Some(Ok(on_rle)) = meta_on_rle.unwrap().get() 
+                        && let Some(Ok(off_rle)) = meta_off_rle.unwrap().get() {
+                        let rect = rle::to_rect(&rle).unwrap();
+                        (actual_left, actual_top, actual_width, actual_height) =
+                            u.set_rect_meta(&rect, &on_rle, &off_rle);
+                    }
+                } else {
+                    u.set_rle(-(w as i64) / 2, -(h as i64) / 2, &rle);
+                }
             });
             set_canvas.update(|gc| {
                 let gc = gc.as_mut().unwrap();
                 gc.fit_rect(
-                    (-(w as i64) / 2) as f64,
-                    (-(h as i64) / 2) as f64,
-                    w as f64,
-                    h as f64,
+                    actual_left as f64,
+                    actual_top as f64,
+                    actual_width as f64,
+                    actual_height as f64,
                 );
                 gc.zoom_at_center(0.6);
             });

@@ -70,6 +70,42 @@ impl Universe {
     pub fn get_level(&self) -> u8 {
         self.arena.get(self.root).level
     }
+    pub fn _get_node(&self, x: i64, y: i64, level: u8, cur: NodeRef) -> NodeRef {
+        let node = self.arena.get(cur);
+        if node.level <= level {
+            return cur;
+        }
+
+        let (xx, yy) = Self::normalize_coords(x, y, node.level - 1);
+        self._get_node(xx, yy, level, node.get_child(x, y))
+    }
+    pub fn get_node(&self, x: i64, y: i64, level: u8) -> NodeRef {
+        self._get_node(x, y, level, self.root)
+    }
+    pub fn _set_node(
+        &mut self,
+        x: i64,
+        y: i64,
+        level: u8,
+        node_ref: NodeRef,
+        cur: NodeRef,
+    ) -> (NodeRef, u64) {
+        let mut node = *self.arena.get(cur);
+        if node.level <= level {
+            return (node_ref, self.arena.get(node_ref).population);
+        }
+
+        let (xx, yy) = Self::normalize_coords(x, y, node.level - 1);
+        let child = self.arena.get(node.get_child(x, y));
+        node.population -= child.population;
+        let (new_child, p) = self._set_node(xx, yy, level, node_ref, node.get_child(x, y));
+        *node.get_child_mut(x, y) = new_child;
+        node.population += p;
+        (self.arena.insert(node), node.population)
+    }
+    pub fn set_node(&mut self, x: i64, y: i64, level: u8, node_ref: NodeRef) {
+        self.root = self._set_node(x, y, level, node_ref, self.root).0;
+    }
 
     pub fn grown(&mut self, node_ref: NodeRef) -> NodeRef {
         // returns NodeRef to node of level node.level + 1

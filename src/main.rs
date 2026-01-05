@@ -11,8 +11,10 @@ fn main() {
             <LoadingCanvasProvider>
                 <Router>
                     <Routes fallback=|| "Not found.">
-                        <Route path=path!("/") view=App />
-                        <Route path=path!("/:name") view=App />
+                        <Route path=path!("/") view=|| view! { <App /> } />
+                        <Route path=path!("/:name") view=|| view! { <App /> } />
+                        <Route path=path!("/meta") view=|| view! { <Redirect path="/" /> } />
+                        <Route path=path!("/meta/:name") view=|| view! { <App meta=true /> } />
                     </Routes>
                 </Router>
             </LoadingCanvasProvider>
