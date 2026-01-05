@@ -43,7 +43,7 @@ pub fn LoadingCanvasProvider(children: Children) -> impl IntoView {
                 gc.clear();
                 universe.with_value(|u| {
                     let half = (1i64 << (u.get_level() - 1)) as f64;
-                    gc.draw_node(u, u.root, -half - gc.origin.1, -half - gc.origin.0);
+                    gc.draw_node(u, -half - gc.origin.1, -half - gc.origin.0);
                 });
             });
         }

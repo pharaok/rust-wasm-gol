@@ -5,7 +5,7 @@ use crate::{
     universe::Universe,
 };
 use gloo_net::http::Request;
-use leptos::{logging, prelude::*};
+use leptos::prelude::*;
 use leptos_router::hooks::*;
 use leptos_router::params::Params;
 use leptos_use::use_raf_fn;
@@ -81,6 +81,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         None
     };
 
+    let is_dirty= StoredValue::new_local(true);
     Effect::new(move |_| {
         // pattern_rle will never actually be Some(Err) because
         // the server will always return 200 OK since this is a SPA
@@ -119,6 +120,12 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                 gc.zoom_at_center(0.6);
             });
         }
+        is_dirty.set_value(true);
+    });
+    Effect::new(move |_| {
+        universe.track();
+        canvas.track();
+        is_dirty.set_value(true);
     });
 
     let prev_tick = StoredValue::new_local(0.0);
@@ -130,15 +137,21 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
             });
             prev_tick.set_value(now);
         }
-        canvas.with(|gc| {
-            let gc = gc.as_ref().unwrap();
+        if !is_dirty.get_value() {
+            return;
+        }
+        // NOTE: updates must be untracked, as otherwise the is_dirty flag gets
+        // set back to true immediately.
+        set_canvas.update_untracked(|gc| {
+            let gc = gc.as_mut().unwrap();
             gc.clear();
             universe.with(|u| {
                 let root = u.arena.get(u.root);
                 let half = (1i64 << (root.level - 1)) as f64;
-                gc.draw_node(u, u.root, -half - gc.origin.1, -half - gc.origin.0);
+                gc.draw_node(u, -half - gc.origin.1, -half - gc.origin.0);
             });
         });
+        is_dirty.set_value(false);
     });
 
     view! {
@@ -174,7 +187,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                                 let gc = gc.as_mut().unwrap();
                                 gc.origin.0 += px - x;
                                 gc.origin.1 += py - y;
-                            })
+                            });
                     } else {
                         set_cursor.set((x, y));
                     }
@@ -192,7 +205,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                     set_canvas
                         .update(|gc| {
                             gc.as_mut().unwrap().zoom_at(factor, x, y);
-                        })
+                        });
                 }
 
                 on:keydown=move |ev| {

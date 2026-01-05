@@ -38,6 +38,9 @@ pub fn Canvas(
             let canvas = canvas_ref.get().unwrap();
             canvas.set_width(width);
             canvas.set_height(height);
+            set_canvas.update(|c| {
+                c.as_mut().unwrap().resize();
+            });
         },
         100.0,
     );

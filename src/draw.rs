@@ -2,32 +2,57 @@ use crate::{
     quadtree::{NodeKind, NodeRef},
     universe::Universe,
 };
-use web_sys::CanvasRenderingContext2d;
+use web_sys::{wasm_bindgen::Clamped, CanvasRenderingContext2d, ImageData};
 
 pub const DEFAULT_CELL_SIZE: f64 = 20.0;
 
 #[derive(Clone)]
 pub struct GolCanvas {
     pub ctx: CanvasRenderingContext2d,
+    pub buffer: Vec<u8>,
     pub origin: (f64, f64),
     pub cell_size: f64,
+    width: u32,
+    height: u32,
 }
 impl GolCanvas {
     pub fn new(ctx: CanvasRenderingContext2d) -> Self {
+        let (width, height) = (
+            ctx.canvas().unwrap().width(),
+            ctx.canvas().unwrap().height(),
+        );
+        let buffer_size = (width * height * 4) as usize;
+
         let mut gc = GolCanvas {
             ctx,
+            buffer: vec![0; buffer_size],
             origin: (0.0, 0.0),
             cell_size: DEFAULT_CELL_SIZE,
+            width,
+            height,
         };
         gc.set_center(0.0, 0.0);
         gc
     }
+    pub fn canvas_width(&self) -> u32 {
+        self.width
+    }
+    pub fn canvas_height(&self) -> u32 {
+        self.height
+    }
     pub fn width(&self) -> f64 {
-        self.ctx.canvas().unwrap().width() as f64 / self.cell_size
+        self.canvas_width() as f64 / self.cell_size
     }
     pub fn height(&self) -> f64 {
-        self.ctx.canvas().unwrap().height() as f64 / self.cell_size
+        self.canvas_height() as f64 / self.cell_size
     }
+    pub fn resize(&mut self) {
+        self.width = self.ctx.canvas().unwrap().width();
+        self.height = self.ctx.canvas().unwrap().height();
+        let buffer_size = (self.canvas_width() * self.canvas_height() * 4) as usize;
+        self.buffer = vec![0; buffer_size];
+    }
+
     pub fn get_zoom(&self) -> f64 {
         self.cell_size / DEFAULT_CELL_SIZE
     }
@@ -61,32 +86,40 @@ impl GolCanvas {
         self.zoom_at(factor, x, y);
     }
     pub fn fit_rect(&mut self, left: f64, top: f64, width: f64, height: f64) {
-        let (canvas_width, canvas_height) = (
-            self.ctx.canvas().unwrap().width() as f64,
-            self.ctx.canvas().unwrap().height() as f64,
-        );
+        let (canvas_width, canvas_height) =
+            (self.canvas_width() as f64, self.canvas_height() as f64);
         let (cell_width, cell_height) = (canvas_width / width, canvas_height / height);
         self.cell_size = cell_width.min(cell_height);
         self.set_center(left + width / 2.0, top + height / 2.0);
     }
-    pub fn clear(&self) {
-        let canvas = self.ctx.canvas().unwrap();
-        self.ctx.set_fill_style_str("black");
-        self.ctx
-            .fill_rect(0.0, 0.0, canvas.width() as f64, canvas.height() as f64);
+    pub fn clear(&mut self) {
+        self.buffer.fill(0);
     }
-    fn fill_rect(&self, left: f64, top: f64, width: f64, height: f64) {
+    fn fill_rect(&mut self, left: f64, top: f64, width: f64, height: f64) {
         let (x, y) = (
-            ((left) * self.cell_size).round(),
-            ((top) * self.cell_size).round(),
+            ((left) * self.cell_size).round() as usize,
+            ((top) * self.cell_size).round() as usize,
         );
         let (actual_width, actual_height) = (
-            ((left + width) * self.cell_size - x).round(),
-            ((top + height) * self.cell_size - y).round(),
+            ((left + width) * self.cell_size - x as f64).round() as usize,
+            ((top + height) * self.cell_size - y as f64).round() as usize,
         );
-        self.ctx.fill_rect(x, y, actual_width, actual_height);
+
+        let canvas_width = self.canvas_width() as usize;
+        let stride = canvas_width * 4;
+        let row_byte_start = x * 4;
+        let row_byte_end = (x + actual_width) * 4;
+
+        // 3. Iterate rows only
+        for yy in y..(y + actual_height) {
+            let start_idx = yy * stride + row_byte_start;
+            let end_idx = yy * stride + row_byte_end;
+            if let Some(row_slice) = self.buffer.get_mut(start_idx..end_idx) {
+                row_slice.fill(255);
+            }
+        }
     }
-    pub fn draw_node(&self, universe: &Universe, node_ref: NodeRef, top: f64, left: f64) {
+    pub fn _draw_node(&mut self, universe: &Universe, node_ref: NodeRef, top: f64, left: f64) {
         let node = universe.arena.get(node_ref);
         if node.population == 0 {
             return;
@@ -99,15 +132,10 @@ impl GolCanvas {
         }
 
         if 2.0 * half * self.cell_size < 2.0 {
-            self.ctx.set_fill_style_str(&format!(
-                "rgba(255, 255, 255, {})",
-                (node.population as f64 / (4.0 * half * half)).max(0.5)
-            ));
             self.fill_rect(left, top, 2.0 * half, 2.0 * half);
             return;
         }
 
-        self.ctx.set_fill_style_str("white");
         match &node.data {
             NodeKind::Leaf(leaf) => {
                 for (y, row) in leaf.iter().enumerate() {
@@ -119,14 +147,25 @@ impl GolCanvas {
                 }
             }
             NodeKind::Branch([nw, ne, sw, se]) => {
-                self.draw_node(universe, *nw, top, left);
-                self.draw_node(universe, *ne, top, left + half);
-                self.draw_node(universe, *sw, top + half, left);
-                self.draw_node(universe, *se, top + half, left + half);
+                self._draw_node(universe, *nw, top, left);
+                self._draw_node(universe, *ne, top, left + half);
+                self._draw_node(universe, *sw, top + half, left);
+                self._draw_node(universe, *se, top + half, left + half);
             }
         };
     }
-    pub fn draw_rect(&self, top: f64, left: f64, width: f64, height: f64, rect: Vec<Vec<u8>>) {
+    pub fn draw_node(&mut self, universe: &Universe, top: f64, left: f64) {
+        self._draw_node(universe, universe.root, top, left);
+
+        let image_data = ImageData::new_with_u8_clamped_array_and_sh(
+            Clamped(&self.buffer),
+            self.canvas_width(),
+            self.canvas_height(),
+        )
+        .unwrap();
+        self.ctx.put_image_data(&image_data, 0.0, 0.0).unwrap()
+    }
+    pub fn draw_rect(&mut self, top: f64, left: f64, width: f64, height: f64, rect: Vec<Vec<u8>>) {
         self.ctx.set_fill_style_str("white");
         let w = width / rect.len() as f64;
         let h = height / rect[0].len() as f64;
