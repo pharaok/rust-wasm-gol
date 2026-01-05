@@ -28,7 +28,7 @@ pub fn Canvas(
         canvas.set_width(div_ref.get().unwrap().client_width() as u32);
         canvas.set_height(div_ref.get().unwrap().client_height() as u32);
         let options = js_sys::Object::new();
-        js_sys::Reflect::set(&options, &"alpha".into(), &false.into()).unwrap();
+        // js_sys::Reflect::set(&options, &"alpha".into(), &false.into()).unwrap();
 
         set_canvas.set(Some(create_2d_context(canvas, options)));
     });
