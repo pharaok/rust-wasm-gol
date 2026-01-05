@@ -7,6 +7,12 @@ use regex::Regex;
 use rustc_hash::FxHashMap;
 
 type Key = (NodeKind, i32); // (node, generations)
+enum Bound {
+    Top,
+    Left,
+    Bottom,
+    Right,
+}
 
 pub struct Universe {
     pub arena: Arena<Node, NodeKind>,
@@ -325,6 +331,15 @@ impl Universe {
         let half = 1i64 << (level - 1);
         (x.rem_euclid(2 * half) - half, y.rem_euclid(2 * half) - half)
     }
+    pub fn child_offset(i: usize, (x, y): (i64, i64), half: i64) -> (i64, i64) {
+        match i {
+            0 => (x, y),
+            1 => (x + half, y),
+            2 => (x, y + half),
+            3 => (x + half, y + half),
+            _ => unreachable!(),
+        }
+    }
 
     pub fn clear(&mut self) {
         self.root = self.empty_ref[self.get_level() as usize];
@@ -499,5 +514,74 @@ impl Universe {
                 }
             }
         }
+    }
+
+    fn _get_bound(&self, bound: &Bound, cur: NodeRef, tl: (i64, i64)) -> i64 {
+        let node = self.arena.get(cur);
+        let worst = match bound {
+            Bound::Top | Bound::Left => i64::MAX,
+            Bound::Bottom | Bound::Right => i64::MIN,
+        };
+        let mut best = worst;
+        if node.population == 0 {
+            return best;
+        }
+
+        let mut take = |v: i64| {
+            match bound {
+                Bound::Top => best = best.min(v),
+                Bound::Left => best = best.min(v),
+                Bound::Bottom => best = best.max(v),
+                Bound::Right => best = best.max(v),
+            };
+        };
+        match node.data {
+            NodeKind::Leaf(data) => {
+                for (y, row) in data.iter().enumerate() {
+                    for (x, cell) in row.iter().enumerate() {
+                        if *cell != 0 {
+                            match bound {
+                                Bound::Top => take(tl.1 + y as i64),
+                                Bound::Left => take(tl.0 + x as i64),
+                                Bound::Bottom => take(tl.1 + y as i64),
+                                Bound::Right => take(tl.0 + x as i64),
+                            };
+                        }
+                    }
+                }
+            }
+            NodeKind::Branch(children) => {
+                let h = 1i64 << (node.level - 1);
+                let (a, b) = match bound {
+                    Bound::Top => ([0, 1], [2, 3]),
+                    Bound::Left => ([0, 2], [1, 3]),
+                    Bound::Bottom => ([2, 3], [0, 1]),
+                    Bound::Right => ([1, 3], [0, 2]),
+                };
+                let mut found = false;
+                for i in a {
+                    let c = self.arena.get(children[i]);
+                    if c.population != 0 {
+                        take(self._get_bound(bound, children[i], Self::child_offset(i, tl, h)));
+                        found = true;
+                    }
+                }
+                if !found {
+                    for i in b {
+                        take(self._get_bound(bound, children[i], Self::child_offset(i, tl, h)))
+                    }
+                }
+            }
+        }
+        best
+    }
+    pub fn get_bounding_rect(&self) -> (i64, i64, i64, i64) {
+        let h = 1i64 << (self.get_level() - 1);
+        (
+            self._get_bound(&Bound::Top, self.root, (-h, -h)),
+            self._get_bound(&Bound::Left, self.root, (-h, -h)),
+            self._get_bound(&Bound::Bottom, self.root, (-h, -h)),
+            self._get_bound(&Bound::Right, self.root, (-h, -h)),
+        )
     }
 }

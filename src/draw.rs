@@ -53,9 +53,6 @@ impl GolCanvas {
         self.buffer = vec![0; buffer_size];
     }
 
-    pub fn get_zoom(&self) -> f64 {
-        self.cell_size / DEFAULT_CELL_SIZE
-    }
     pub fn to_grid(&self, offset_x: f64, offset_y: f64) -> (f64, f64) {
         (
             self.origin.0 + (offset_x / self.cell_size),
@@ -96,6 +93,11 @@ impl GolCanvas {
         self.buffer.fill(0);
     }
     fn fill_rect(&mut self, left: f64, top: f64, width: f64, height: f64) {
+        let (bottom, right) = (top + height, left + width);
+        if bottom < 0.0 || right < 0.0 || top > self.height() || left > self.width() {
+            return;
+        }
+
         let (x, y) = (
             ((left) * self.cell_size).round() as usize,
             ((top) * self.cell_size).round() as usize,
@@ -108,9 +110,8 @@ impl GolCanvas {
         let canvas_width = self.canvas_width() as usize;
         let stride = canvas_width * 4;
         let row_byte_start = x * 4;
-        let row_byte_end = (x + actual_width) * 4;
+        let row_byte_end = (x + actual_width).min(canvas_width) * 4;
 
-        // 3. Iterate rows only
         for yy in y..(y + actual_height) {
             let start_idx = yy * stride + row_byte_start;
             let end_idx = yy * stride + row_byte_end;

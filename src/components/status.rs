@@ -29,6 +29,22 @@ pub fn Item(
     }
 }
 
+fn metric_string(n: f64) -> String {
+    if n >= 1e15 {
+        format!("{:.1}P", n / 1e15)
+    } else if n >= 1e12 {
+        format!("{:.1}T", n / 1e12)
+    } else if n >= 1e9 {
+        format!("{:.1}G", n / 1e9)
+    } else if n >= 1e6 {
+        format!("{:.1}M", n / 1e6)
+    } else if n >= 1e3 {
+        format!("{:.1}k", n / 1e3)
+    } else {
+        format!("{:.1}", n)
+    }
+}
+
 #[component]
 pub fn Status() -> impl IntoView {
     let GolContext {
@@ -38,7 +54,14 @@ pub fn Status() -> impl IntoView {
         set_canvas,
         ..
     } = use_context::<GolContext>().unwrap();
-    let zoom = move || canvas.with(|gc| gc.as_ref().map(|gc| gc.get_zoom()).unwrap_or(1.0));
+    let ratio = move || {
+        let cell_size = canvas.with(|gc| gc.as_ref().map(|gc| gc.cell_size).unwrap_or(1.0));
+        if cell_size < 1.0 {
+            format!("1px:{}", metric_string(1.0 / cell_size))
+        } else {
+            format!("{}px:1", metric_string(cell_size))
+        }
+    };
 
     let params = use_params::<GolParams>();
     let pattern_name = move || {
@@ -65,9 +88,11 @@ pub fn Status() -> impl IntoView {
                     set_canvas
                         .update(|gc| {
                             let gc = gc.as_mut().unwrap();
-                            gc.zoom_at_center(1.0 / gc.get_zoom());
+                            let (t, l, b, r) = universe.with(|u| u.get_bounding_rect());
+                            gc.fit_rect(t as f64, l as f64, (r - l) as f64, (b - l) as f64);
+                            gc.zoom_at_center(0.6);
                         });
-                })>{move || format!("{:.0}%", zoom() * 100.0)}</Item>
+                })>{ratio}</Item>
                 <Divider />
                 <Item>
                     {move || {
