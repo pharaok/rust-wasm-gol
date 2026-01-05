@@ -488,31 +488,8 @@ impl Universe {
         (self.arena.insert(new_node), new_node.population)
     }
     pub fn set_rle(&mut self, x: i64, y: i64, rle: &str) {
-        let item_re = Regex::new(r"\s*(\d*)([a-zA-Z\$\!])").unwrap();
-        let (PatternMetadata { .. }, mut start) =
-            rle::parse_metadata(rle, "Unnamed Pattern", "").unwrap();
-
-        let (mut i, mut j) = (y, x);
-        while let Some(c) = item_re.captures_at(rle, start) {
-            let (_, [count_str, tag]) = c.extract();
-            let count = count_str.parse().unwrap_or(1);
-            start = c.get(0).unwrap().end();
-            match tag {
-                "!" => break,
-                "$" => {
-                    i += count;
-                    j = x;
-                }
-                _ => {
-                    for jj in 0..count {
-                        match tag {
-                            "b" | "B" => {}
-                            _ => self.set(j + jj, i, 1),
-                        };
-                    }
-                    j += count;
-                }
-            }
+        for (xx, yy) in rle::iter(rle).unwrap() {
+            self.set(x + xx as i64, y + yy as i64, 1);
         }
     }
 

@@ -74,36 +74,78 @@ pub mod rle {
             start,
         ))
     }
-    pub fn to_rect(rle: &str) -> Result<Vec<Vec<u8>>, ()> {
-        let item_re = Regex::new(r"\s*(\d*)([a-zA-Z\$\!])").unwrap();
 
-        let (PatternMetadata { width, height, .. }, mut start) =
-            parse_metadata(rle, "Unnamed Pattern", "")?;
+    pub struct RLEIterator {
+        rle: String,
+        start: usize,
+        count: usize,
+        x: usize,
+        y: usize,
+    }
+    impl RLEIterator {
+        pub fn new(rle: &str) -> Result<Self, ()> {
+            let (PatternMetadata { width, height, .. }, start) =
+                parse_metadata(rle, "Unnamed Pattern", "")?;
 
-        let mut rect = vec![vec![0; width]; height];
-        let (mut i, mut j) = (0, 0);
-        while let Some(c) = item_re.captures_at(rle, start) {
-            let (_, [count_str, tag]) = c.extract();
-            let count = count_str.parse().unwrap_or(1);
-            start = c.get(0).unwrap().end();
-            match tag {
-                "!" => break,
-                "$" => {
-                    i += count;
-                    j = 0;
-                }
-                _ => {
-                    for jj in 0..count {
-                        match tag {
-                            "b" | "B" => {}
-                            _ => rect[i][j + jj] = 1,
-                        };
+            Ok(Self {
+                rle: rle.to_owned(),
+                start,
+                count: 0,
+                x: 0,
+                y: 0,
+            })
+        }
+    }
+    impl Iterator for RLEIterator {
+        type Item = (usize, usize);
+
+        fn next(&mut self) -> Option<Self::Item> {
+            let item_re = Regex::new(r"\s*(\d*)([a-zA-Z\$\!])").unwrap();
+
+            while let Some(c) = item_re.captures_at(&self.rle, self.start) {
+                let (_, [count_str, tag]) = c.extract();
+                let count = count_str.parse().unwrap_or(1);
+                let start = c.get(0).unwrap().end();
+                match tag {
+                    "!" => break,
+                    "$" => {
+                        self.y += count;
+                        self.x = 0;
+                        self.start = start;
+                        self.count = 0;
                     }
-                    j += count;
+                    "b" | "B" => {
+                        self.x += count;
+                        self.start = start;
+                        self.count = 0;
+                    }
+                    _ => {
+                        if self.count < count {
+                            self.count += 1;
+                            self.x += 1;
+                            return Some((self.x - 1, self.y));
+                        } else {
+                            self.start = start;
+                            self.count = 0;
+                        }
+                    }
                 }
             }
-        }
 
+            None
+        }
+    }
+    pub fn iter(rle: &str) -> Result<RLEIterator, ()> {
+        RLEIterator::new(rle)
+    }
+
+    pub fn to_rect(rle: &str) -> Result<Vec<Vec<u8>>, ()> {
+        let (PatternMetadata { width, height, .. }, _) =
+            parse_metadata(rle, "Unnamed Pattern", "")?;
+        let mut rect = vec![vec![0; width]; height];
+        for (x, y) in iter(rle)? {
+            rect[y][x] = 1;
+        }
         Ok(rect)
     }
 
