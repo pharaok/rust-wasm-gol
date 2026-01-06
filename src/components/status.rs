@@ -85,11 +85,14 @@ pub fn Status() -> impl IntoView {
                 <Item>{move || format!("Pop: {}", universe.with(|u| u.get_population()))}</Item>
                 <Divider />
                 <Item on_press=Box::new(move || {
+                    if universe.with(|u| u.get_population()) == 0 {
+                        return;
+                    }
                     set_canvas
                         .update(|gc| {
                             let gc = gc.as_mut().unwrap();
                             let (t, l, b, r) = universe.with(|u| u.get_bounding_rect());
-                            gc.fit_rect(t as f64, l as f64, (r - l) as f64, (b - l) as f64);
+                            gc.fit_rect(t as f64, l as f64, (r - l + 1) as f64, (b - l + 1) as f64);
                             gc.zoom_at_center(0.6);
                         });
                 })>{ratio}</Item>

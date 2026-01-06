@@ -1,4 +1,4 @@
-use js_sys::{wasm_bindgen::JsValue, Reflect};
+use js_sys::{Reflect, wasm_bindgen::JsValue};
 
 pub fn get_index(captures: &JsValue) -> usize {
     Reflect::get(captures, &JsValue::from("index"))
@@ -86,6 +86,7 @@ pub mod rle {
         if let Some(m) = captures.get(3).as_string() {
             rule = m;
         }
+
         start += get_index(&captures) + captures.get(0).as_string().unwrap().len();
         Ok((
             PatternMetadata {
@@ -125,33 +126,33 @@ pub mod rle {
         type Item = (usize, usize);
 
         fn next(&mut self) -> Option<Self::Item> {
-            while self.start < self.rle.len() && let Some(c) = ITEM_RE.with(|re| re.exec(&self.rle[self.start..])) {
+            if self.count > 0 {
+                self.count -= 1;
+                self.x += 1;
+                return Some((self.x - 1, self.y));
+            }
+            while self.start < self.rle.len()
+                && let Some(c) = ITEM_RE.with(|re| re.exec(&self.rle[self.start..]))
+            {
                 let count_str = c.get(1).as_string().unwrap();
                 let tag = c.get(2).as_string().unwrap();
-                let count = count_str.parse().unwrap_or(1);
-                let start = self.start + get_index(&c) + c.get(0).as_string().unwrap().len();
+                self.count = count_str.parse().unwrap_or(1);
+                self.start = self.start + get_index(&c) + c.get(0).as_string().unwrap().len();
                 match tag.as_str() {
                     "!" => break,
                     "$" => {
-                        self.y += count;
+                        self.y += self.count;
                         self.x = 0;
-                        self.start = start;
                         self.count = 0;
                     }
                     "b" | "B" => {
-                        self.x += count;
-                        self.start = start;
+                        self.x += self.count;
                         self.count = 0;
                     }
                     _ => {
-                        if self.count < count {
-                            self.count += 1;
-                            self.x += 1;
-                            return Some((self.x - 1, self.y));
-                        } else {
-                            self.start = start;
-                            self.count = 0;
-                        }
+                        self.count -= 1;
+                        self.x += 1;
+                        return Some((self.x - 1, self.y));
                     }
                 }
             }

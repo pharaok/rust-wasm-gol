@@ -1,7 +1,7 @@
 use crate::{
     arena::Arena,
     parse::rle,
-    quadtree::{Branch, Leaf, Node, NodeKind, NodeRef, LEAF_LEVEL, LEAF_SIZE},
+    quadtree::{Branch, LEAF_LEVEL, LEAF_SIZE, Leaf, Node, NodeKind, NodeRef},
 };
 use rustc_hash::FxHashMap;
 
@@ -75,7 +75,7 @@ impl Universe {
     pub fn get_level(&self) -> u8 {
         self.arena.get(self.root).level
     }
-    pub fn _get_node(&self, x: i64, y: i64, level: u8, cur: NodeRef) -> NodeRef {
+    fn _get_node(&self, x: i64, y: i64, level: u8, cur: NodeRef) -> NodeRef {
         let node = self.arena.get(cur);
         if node.level <= level {
             return cur;
@@ -87,36 +87,35 @@ impl Universe {
     pub fn get_node(&self, x: i64, y: i64, level: u8) -> NodeRef {
         self._get_node(x, y, level, self.root)
     }
-    pub fn _set_node(
+    fn _set_node(
         &mut self,
         x: i64,
         y: i64,
-        level: u8,
+        node_level: u8,
         node_ref: NodeRef,
         cur: NodeRef,
     ) -> (NodeRef, u64) {
         let node = *self.arena.get(cur);
-        if node.level <= level {
+        if node.level <= node_level {
             return (node_ref, self.arena.get(node_ref).population);
         }
 
-        let (xx, yy) = Node::normalize_coords(x, y, node.level - 1);
-        let child = self.arena.get(node.get_child(x, y));
         if let Node {
             data: NodeKind::Branch(mut children),
             level,
             mut population,
         } = node
         {
-            population -= child.population;
             let i = Node::get_child_index(x, y);
-            let (new_child, p) = self._set_node(xx, yy, level, node_ref, children[i]);
+            let (xx, yy) = Node::normalize_coords(x, y, level - 1);
+            population -= self.arena.get(children[i]).population;
+            let (new_child, p) = self._set_node(xx, yy, node_level, node_ref, children[i]);
             children[i] = new_child;
             population += p;
             (
                 self.arena
                     .insert(Node::new_branch(children, level, population)),
-                node.population,
+                population,
             )
         } else {
             panic!()

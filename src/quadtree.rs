@@ -74,10 +74,10 @@ impl Node {
     }
 
     pub fn get_child_index(x: i64, y: i64) -> usize {
-        match (x < 0, y < 0) {
+        match (y < 0, x < 0) {
             (true, true) => 0,
-            (false, true) => 1,
-            (true, false) => 2,
+            (true, false) => 1,
+            (false, true) => 2,
             (false, false) => 3,
         }
     }

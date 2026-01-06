@@ -81,29 +81,28 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         None
     };
 
-    let is_dirty= StoredValue::new_local(true);
+    let is_dirty = StoredValue::new_local(true);
     Effect::new(move |_| {
         // pattern_rle will never actually be Some(Err) because
         // the server will always return 200 OK since this is a SPA
-        if let Some(Ok(rle)) = pattern_rle.get() {
-            let (
+        if let Some(Ok(rle)) = pattern_rle.get()
+            && let Ok((
                 PatternMetadata {
                     width: w,
                     height: h,
                     ..
                 },
                 _,
-            ) = rle::parse_metadata(&rle, "Unnamed Pattern", "").unwrap();
-            let (mut actual_top, mut actual_left, mut actual_width, mut actual_height) =
-                ((-(w as i64) / 2), (-(h as i64) / 2), w as i64, h as i64);
+            )) = rle::parse_metadata(&rle, "Unnamed Pattern", "")
+        {
             set_universe.update(|u| {
                 u.clear();
                 if meta {
-                    if let Some(Ok(on_rle)) = meta_on_rle.unwrap().get() 
-                        && let Some(Ok(off_rle)) = meta_off_rle.unwrap().get() {
+                    if let Some(Ok(on_rle)) = meta_on_rle.unwrap().get()
+                        && let Some(Ok(off_rle)) = meta_off_rle.unwrap().get()
+                    {
                         let rect = rle::to_rect(&rle).unwrap();
-                        (actual_left, actual_top, actual_width, actual_height) =
-                            u.set_rect_meta(&rect, &on_rle, &off_rle);
+                        u.set_rect_meta(&rect, &on_rle, &off_rle);
                     }
                 } else {
                     u.set_rle(-(w as i64) / 2, -(h as i64) / 2, &rle);
@@ -111,12 +110,10 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
             });
             set_canvas.update(|gc| {
                 let gc = gc.as_mut().unwrap();
-                gc.fit_rect(
-                    actual_left as f64,
-                    actual_top as f64,
-                    actual_width as f64,
-                    actual_height as f64,
-                );
+                if universe.with_untracked(|u| u.get_population()) != 0 {
+                    let (t, l, b, r) = universe.with_untracked(|u| u.get_bounding_rect());
+                    gc.fit_rect(l as f64, t as f64, (r - l + 1) as f64, (b - t + 1) as f64);
+                }
                 gc.zoom_at_center(0.6);
             });
         }
