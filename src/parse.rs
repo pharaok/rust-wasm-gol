@@ -86,8 +86,8 @@ pub mod rle {
         if let Some(m) = captures.get(3).as_string() {
             rule = m;
         }
-
         start += get_index(&captures) + captures.get(0).as_string().unwrap().len();
+
         Ok((
             PatternMetadata {
                 name,
@@ -102,27 +102,27 @@ pub mod rle {
         ))
     }
 
-    pub struct RLEIterator {
-        rle: String,
-        start: usize,
+    pub struct RLEIterator<'a> {
+        rle: &'a str,
+        i: usize,
         count: usize,
         x: usize,
         y: usize,
     }
-    impl RLEIterator {
-        pub fn new(rle: &str) -> Result<Self, ()> {
+    impl<'a> RLEIterator<'a> {
+        pub fn new(rle: &'a str) -> Result<Self, ()> {
             let (_, start) = parse_metadata(rle, "Unnamed Pattern", "")?;
 
             Ok(Self {
-                rle: rle.to_owned(),
-                start,
+                rle: &rle[start..],
+                i: 0,
                 count: 0,
                 x: 0,
                 y: 0,
             })
         }
     }
-    impl Iterator for RLEIterator {
+    impl<'a> Iterator for RLEIterator<'a> {
         type Item = (usize, usize);
 
         fn next(&mut self) -> Option<Self::Item> {
@@ -131,21 +131,39 @@ pub mod rle {
                 self.x += 1;
                 return Some((self.x - 1, self.y));
             }
-            while self.start < self.rle.len()
-                && let Some(c) = ITEM_RE.with(|re| re.exec(&self.rle[self.start..]))
-            {
-                let count_str = c.get(1).as_string().unwrap();
-                let tag = c.get(2).as_string().unwrap();
-                self.count = count_str.parse().unwrap_or(1);
-                self.start = self.start + get_index(&c) + c.get(0).as_string().unwrap().len();
-                match tag.as_str() {
-                    "!" => break,
-                    "$" => {
+
+            let bytes = self.rle.as_bytes();
+            loop {
+                while self.i < bytes.len() && bytes[self.i].is_ascii_whitespace() {
+                    self.i += 1;
+                }
+                if self.i >= bytes.len() {
+                    return None;
+                }
+
+                let mut count_str_end = self.i;
+                while count_str_end < bytes.len() && bytes[count_str_end].is_ascii_digit() {
+                    count_str_end += 1;
+                }
+                self.count = str::from_utf8(&bytes[self.i..count_str_end])
+                    .unwrap()
+                    .parse()
+                    .unwrap_or(1);
+                self.i = count_str_end;
+                if self.i >= bytes.len() {
+                    return None;
+                }
+
+                let tag = bytes[self.i] as char;
+                self.i += 1;
+                match tag {
+                    '!' => return None,
+                    '$' => {
                         self.y += self.count;
                         self.x = 0;
                         self.count = 0;
                     }
-                    "b" | "B" => {
+                    'b' | 'B' => {
                         self.x += self.count;
                         self.count = 0;
                     }
@@ -156,8 +174,6 @@ pub mod rle {
                     }
                 }
             }
-
-            None
         }
     }
     pub fn iter_alive(rle: &str) -> Result<RLEIterator, ()> {
