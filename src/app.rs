@@ -45,7 +45,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
     // WARN: a large Universe results in catastrophic cancellation in
     // draw_node, which causes issues with rendering and panning.
     let (universe, set_universe) =
-        signal_local(Universe::with_size_and_arena_capacity(20, 1 << 24));
+        signal_local(Universe::with_size_and_arena_capacity(50, 1 << 24));
     let (canvas, set_canvas) = signal_local::<Option<GolCanvas>>(None);
     let (cursor, set_cursor) = signal_local((0.0, 0.0));
     let (is_ticking, set_is_ticking) = signal_local(false);

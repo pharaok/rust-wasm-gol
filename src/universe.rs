@@ -430,18 +430,22 @@ impl Universe {
                     }
                 }
             }
-            NodeKind::Branch([nw, ne, sw, se]) => {
-                let q = 1i64 << (node.level - 2);
-                self._get_rect(x1 + q, y1 + q, x2 + q, y2 + q, grid, nw);
-                self._get_rect(x1 - q, y1 + q, x2 - q, y2 + q, grid, ne);
-                self._get_rect(x1 + q, y1 - q, x2 + q, y2 - q, grid, sw);
-                self._get_rect(x1 - q, y1 - q, x2 - q, y2 - q, grid, se);
+            NodeKind::Branch(children) => {
+                for (i, child) in children.iter().enumerate() {
+                    let (ox, oy) = Node::offset_to_child(i, node.level);
+                    self._get_rect(x1 + ox, y1 + oy, x2 + ox, y2 + oy, grid, *child);
+                }
             }
         }
     }
     pub fn get_rect(&self, x1: i64, y1: i64, x2: i64, y2: i64) -> Vec<Vec<u8>> {
         let half = 1i64 << (self.get_level() - 1);
-        let (x1, y1, x2, y2) = (x1.max(-half), y1.max(-half), x2.min(half), y2.min(half));
+        let (x1, y1, x2, y2) = (
+            x1.clamp(-half, half - 1),
+            y1.clamp(-half, half - 1),
+            x2.clamp(-half, half - 1),
+            y2.clamp(-half, half - 1),
+        );
 
         let (w, h) = ((x2 - x1) as usize, (y2 - y1) as usize);
         let mut grid = vec![vec![0; w]; h];
@@ -473,43 +477,36 @@ impl Universe {
                 }
                 Node::new_leaf(data, pop)
             }
-            NodeKind::Branch([nw, ne, sw, se]) => {
-                let q = 1i64 << (node.level - 2);
+            NodeKind::Branch(mut children) => {
+                let mut pop = 0;
+                for (i, child) in children.iter_mut().enumerate() {
+                    let (ox, oy) = Node::offset_to_child(i, node.level);
+                    let (new_child, new_pop) = self._set_rect(x + ox, y + oy, grid, *child);
+                    *child = new_child;
+                    pop += new_pop;
+                }
 
-                let (new_nw, nw_pop) = self._set_rect(x + q, y + q, grid, nw);
-                let (new_ne, ne_pop) = self._set_rect(x - q, y + q, grid, ne);
-                let (new_sw, sw_pop) = self._set_rect(x + q, y - q, grid, sw);
-                let (new_se, se_pop) = self._set_rect(x - q, y - q, grid, se);
-                Node::new_branch(
-                    [new_nw, new_ne, new_sw, new_se],
-                    node.level,
-                    nw_pop + ne_pop + sw_pop + se_pop,
-                )
+                Node::new_branch(children, node.level, pop)
             }
         };
         (self.arena.insert(new_node), new_node.population)
     }
     pub fn set_rect(&mut self, x: i64, y: i64, grid: &Vec<Vec<u8>>) {
+        let half = 1i64 << (self.get_level() - 1);
+        let (x, y) = (x.clamp(-half, half - 1), y.clamp(-half, half - 1));
         self.root = self._set_rect(x, y, grid, self.root).0;
     }
-    fn _clear_rect(
-        &mut self,
-        left: i64,
-        top: i64,
-        right: i64,
-        bottom: i64,
-        curr: NodeRef,
-    ) -> (NodeRef, u64) {
+    fn _clear_rect(&mut self, x1: i64, y1: i64, x2: i64, y2: i64, curr: NodeRef) -> (NodeRef, u64) {
         let node = *self.arena.get(curr);
         let half = 1i64 << (node.level - 1);
 
         if node.population == 0 {
             return (curr, 0);
         }
-        if left >= half || top >= half || right < -half || bottom < -half {
+        if x1 >= half || y1 >= half || x2 < -half || y2 < -half {
             return (curr, node.population);
         }
-        if left <= -half && top <= -half && half < right && half < bottom {
+        if x1 <= -half && y1 <= -half && half < x2 && half < y2 {
             return (self.empty_ref[node.level as usize], 0);
         }
 
@@ -519,7 +516,7 @@ impl Universe {
                 for (i, row) in data.iter_mut().enumerate() {
                     for (j, cell) in row.iter_mut().enumerate() {
                         let (x, y) = (j as i64 - half, i as i64 - half);
-                        if left <= x && x <= right && top <= y && y <= bottom {
+                        if x1 <= x && x <= x2 && y1 <= y && y <= y2 {
                             *cell = 0;
                         }
                         pop += *cell as u64;
@@ -527,28 +524,30 @@ impl Universe {
                 }
                 Node::new_leaf(data, pop)
             }
-            NodeKind::Branch([nw, ne, sw, se]) => {
-                let q = 1i64 << (node.level - 2);
+            NodeKind::Branch(mut children) => {
+                let mut pop = 0;
+                for (i, child) in children.iter_mut().enumerate() {
+                    let (ox, oy) = Node::offset_to_child(i, node.level);
+                    let (new_child, new_pop) =
+                        self._clear_rect(x1 + ox, y1 + oy, x2 + ox, y2 + oy, *child);
+                    *child = new_child;
+                    pop += new_pop;
+                }
 
-                let (new_nw, nw_pop) =
-                    self._clear_rect(left + q, top + q, right + q, bottom + q, nw);
-                let (new_ne, ne_pop) =
-                    self._clear_rect(left - q, top + q, right - q, bottom + q, ne);
-                let (new_sw, sw_pop) =
-                    self._clear_rect(left + q, top - q, right + q, bottom - q, sw);
-                let (new_se, se_pop) =
-                    self._clear_rect(left - q, top - q, right - q, bottom - q, se);
-                Node::new_branch(
-                    [new_nw, new_ne, new_sw, new_se],
-                    node.level,
-                    nw_pop + ne_pop + sw_pop + se_pop,
-                )
+                Node::new_branch(children, node.level, pop)
             }
         };
         (self.arena.insert(new_node), new_node.population)
     }
-    pub fn clear_rect(&mut self, left: i64, top: i64, right: i64, bottom: i64) {
-        self.root = self._clear_rect(left, top, right, bottom, self.root).0;
+    pub fn clear_rect(&mut self, x1: i64, y1: i64, x2: i64, y2: i64) {
+        let half = 1i64 << (self.get_level() - 1);
+        let (x1, y1, x2, y2) = (
+            x1.clamp(-half, half - 1),
+            y1.clamp(-half, half - 1),
+            x2.clamp(-half, half - 1),
+            y2.clamp(-half, half - 1),
+        );
+        self.root = self._clear_rect(x1, y1, x2, y2, self.root).0;
     }
     pub fn set_rle(&mut self, x: i64, y: i64, rle: &str) {
         for (xx, yy) in rle::iter_alive(rle).unwrap() {
@@ -601,7 +600,7 @@ impl Universe {
                 let mut found = false;
                 for i in a {
                     let c = self.arena.get(children[i]);
-                    let (dx, dy) = Node::get_child_offset(i, h);
+                    let (dx, dy) = Node::get_child_offset(i, node.level);
                     if c.population != 0 {
                         take(self._get_bound(bound, children[i], left + dx, top + dy));
                         found = true;
@@ -609,7 +608,7 @@ impl Universe {
                 }
                 if !found {
                     for i in b {
-                        let (dx, dy) = Node::get_child_offset(i, h);
+                        let (dx, dy) = Node::get_child_offset(i, node.level);
                         take(self._get_bound(bound, children[i], left + dx, top + dy))
                     }
                 }

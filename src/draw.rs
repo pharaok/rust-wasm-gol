@@ -1,5 +1,5 @@
 use crate::{
-    quadtree::{NodeKind, NodeRef},
+    quadtree::{Node, NodeKind, NodeRef},
     universe::Universe,
 };
 use web_sys::{CanvasRenderingContext2d, ImageData, wasm_bindgen::Clamped};
@@ -153,11 +153,11 @@ impl GolCanvas {
                     }
                 }
             }
-            NodeKind::Branch([nw, ne, sw, se]) => {
-                self._draw_node(universe, *nw, top, left);
-                self._draw_node(universe, *ne, top, left + half);
-                self._draw_node(universe, *sw, top + half, left);
-                self._draw_node(universe, *se, top + half, left + half);
+            NodeKind::Branch(children) => {
+                for (i, child) in children.iter().enumerate() {
+                    let (ox, oy) = Node::get_child_offset(i, node.level);
+                    self._draw_node(universe, *child, top + oy as f64, left + ox as f64);
+                }
             }
         };
     }

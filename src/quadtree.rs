@@ -87,7 +87,8 @@ impl Node {
             NodeKind::Leaf(_) => panic!(),
         }
     }
-    pub fn get_child_offset(i: usize, half: i64) -> (i64, i64) {
+    pub fn get_child_offset(i: usize, level: u8) -> (i64, i64) {
+        let half = 1i64 << (level - 1);
         match i {
             0 => (0, 0),
             1 => (half, 0),
@@ -99,6 +100,16 @@ impl Node {
     pub fn normalize_coords(x: i64, y: i64, level: u8) -> (i64, i64) {
         let half = 1i64 << (level - 1);
         (x.rem_euclid(2 * half) - half, y.rem_euclid(2 * half) - half)
+    }
+    pub fn offset_to_child(i: usize, level: u8) -> (i64, i64) {
+        let q = 1i64 << (level - 2);
+        match i {
+            0 => (q, q),
+            1 => (-q, q),
+            2 => (q, -q),
+            3 => (-q, -q),
+            _ => unreachable!(),
+        }
     }
 
     pub fn is_leaf(&self) -> bool {
