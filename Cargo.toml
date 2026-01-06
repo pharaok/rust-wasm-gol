@@ -12,10 +12,10 @@ leptos = { version = "0.8.15", features = ["csr", "nightly"] }
 leptos-use = "0.17.0"
 leptos_icons = "0.7.0"
 leptos_router = { version = "0.8.11" }
-regex = "1.12.2"
 tailwind_fuse = "0.3.2"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.148"
+js-sys = "0.3.83"
 
 [dependencies.web-sys]
 version = "0.3.83"

@@ -1,6 +1,24 @@
+use js_sys::{wasm_bindgen::JsValue, Reflect};
+
+pub fn get_index(captures: &JsValue) -> usize {
+    Reflect::get(captures, &JsValue::from("index"))
+        .ok()
+        .unwrap()
+        .as_f64()
+        .unwrap() as usize
+}
 pub mod rle {
-    use regex::Regex;
+    use super::get_index;
+    use js_sys::RegExp;
     use serde::{Deserialize, Serialize};
+
+    thread_local! {
+            static ITEM_RE: RegExp = RegExp::new(r"\s*(\d*)([a-zA-Z\$\!])", "");
+            static SECTION_RE: RegExp = RegExp::new(r"^#([a-zA-Z])(.*)$", "m");
+            static HEADER_RE: RegExp = RegExp::new(
+                r"^\s*x\s*=\s*(\d+)\s*,?\s*y\s*=\s*(\d+)\s*(?:,?\s*rule\s*=\s*(\S+)\s*)?$","m"
+        );
+    }
 
     #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
     pub struct PatternMetadata {
@@ -18,49 +36,57 @@ pub mod rle {
         name: &str,
         path: &str,
     ) -> Result<(PatternMetadata, usize), ()> {
-        let section_re = Regex::new(r"(?m)^#([a-zA-Z])(.*)$").unwrap();
-        let header_re = Regex::new(
-            r"(?m)^\s*x\s*=\s*(\d+)\s*,?\s*y\s*=\s*(\d+)\s*(?:,?\s*rule\s*=\s*(\S+)\s*)?$",
-        )
-        .unwrap();
-
         let mut name = name.to_owned();
         let mut comment = String::new();
         let mut owner = None;
-        let mut rule = "23/3";
+        let mut rule = "23/3".to_owned();
 
         let mut start = 0;
-        while let Some(c) = section_re.captures_at(rle, start) {
-            let (_, [letter, line]) = c.extract();
-            match letter {
+        while let Some(captures) = SECTION_RE.with(|re| re.exec(&rle[start..])) {
+            let letter = captures.get(1).as_string().unwrap();
+            let line = captures.get(2).as_string().unwrap();
+
+            match letter.as_str() {
                 "C" | "c" => {
                     comment.push_str(line.trim());
                     comment.push('\n');
                 }
                 "N" => {
-                    name = line.trim().to_string();
+                    name = line.trim().to_owned();
                 }
                 "O" => {
-                    owner = Some(line.trim().to_string());
+                    owner = Some(line.trim().to_owned());
                 }
                 "r" => {
-                    rule = line.trim();
+                    rule = line.trim().to_owned();
                 }
                 _ => {}
             }
-            start = c.get(0).unwrap().end();
+            start += get_index(&captures) + captures.get(0).as_string().unwrap().len();
         }
 
-        let captures = match header_re.captures(rle) {
+        let captures = match HEADER_RE.with(|re| re.exec(&rle[start..])) {
             Some(c) => c,
             None => return Err(()),
         };
-        let width: usize = captures.get(1).unwrap().as_str().parse().unwrap();
-        let height: usize = captures.get(2).unwrap().as_str().parse().unwrap();
-        if let Some(m) = captures.get(3) {
-            rule = m.as_str();
+        let width: usize = captures
+            .get(1)
+            .as_string()
+            .unwrap()
+            .as_str()
+            .parse()
+            .unwrap();
+        let height: usize = captures
+            .get(2)
+            .as_string()
+            .unwrap()
+            .as_str()
+            .parse()
+            .unwrap();
+        if let Some(m) = captures.get(3).as_string() {
+            rule = m;
         }
-        start = captures.get(0).unwrap().end();
+        start += get_index(&captures) + captures.get(0).as_string().unwrap().len();
         Ok((
             PatternMetadata {
                 name,
@@ -69,7 +95,7 @@ pub mod rle {
                 owner,
                 width,
                 height,
-                rule: rule.to_string(),
+                rule,
             },
             start,
         ))
@@ -84,8 +110,7 @@ pub mod rle {
     }
     impl RLEIterator {
         pub fn new(rle: &str) -> Result<Self, ()> {
-            let (PatternMetadata { width, height, .. }, start) =
-                parse_metadata(rle, "Unnamed Pattern", "")?;
+            let (_, start) = parse_metadata(rle, "Unnamed Pattern", "")?;
 
             Ok(Self {
                 rle: rle.to_owned(),
@@ -100,13 +125,12 @@ pub mod rle {
         type Item = (usize, usize);
 
         fn next(&mut self) -> Option<Self::Item> {
-            let item_re = Regex::new(r"\s*(\d*)([a-zA-Z\$\!])").unwrap();
-
-            while let Some(c) = item_re.captures_at(&self.rle, self.start) {
-                let (_, [count_str, tag]) = c.extract();
+            while self.start < self.rle.len() && let Some(c) = ITEM_RE.with(|re| re.exec(&self.rle[self.start..])) {
+                let count_str = c.get(1).as_string().unwrap();
+                let tag = c.get(2).as_string().unwrap();
                 let count = count_str.parse().unwrap_or(1);
-                let start = c.get(0).unwrap().end();
-                match tag {
+                let start = self.start + get_index(&c) + c.get(0).as_string().unwrap().len();
+                match tag.as_str() {
                     "!" => break,
                     "$" => {
                         self.y += count;
@@ -135,7 +159,7 @@ pub mod rle {
             None
         }
     }
-    pub fn iter(rle: &str) -> Result<RLEIterator, ()> {
+    pub fn iter_alive(rle: &str) -> Result<RLEIterator, ()> {
         RLEIterator::new(rle)
     }
 
@@ -143,7 +167,7 @@ pub mod rle {
         let (PatternMetadata { width, height, .. }, _) =
             parse_metadata(rle, "Unnamed Pattern", "")?;
         let mut rect = vec![vec![0; width]; height];
-        for (x, y) in iter(rle)? {
+        for (x, y) in iter_alive(rle)? {
             rect[y][x] = 1;
         }
         Ok(rect)

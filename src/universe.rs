@@ -498,7 +498,7 @@ impl Universe {
         (self.arena.insert(new_node), new_node.population)
     }
     pub fn set_rle(&mut self, x: i64, y: i64, rle: &str) {
-        for (xx, yy) in rle::iter(rle).unwrap() {
+        for (xx, yy) in rle::iter_alive(rle).unwrap() {
             self.set(x + xx as i64, y + yy as i64, 1);
         }
     }
