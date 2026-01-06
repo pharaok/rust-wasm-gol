@@ -2,7 +2,7 @@ use crate::{
     quadtree::{NodeKind, NodeRef},
     universe::Universe,
 };
-use web_sys::{wasm_bindgen::Clamped, CanvasRenderingContext2d, ImageData};
+use web_sys::{CanvasRenderingContext2d, ImageData, wasm_bindgen::Clamped};
 
 pub const DEFAULT_CELL_SIZE: f64 = 20.0;
 
@@ -53,10 +53,16 @@ impl GolCanvas {
         self.buffer = vec![0; buffer_size];
     }
 
-    pub fn to_grid(&self, offset_x: f64, offset_y: f64) -> (f64, f64) {
+    pub fn to_world_coords(&self, offset_x: f64, offset_y: f64) -> (f64, f64) {
         (
             self.origin.0 + (offset_x / self.cell_size),
             self.origin.1 + (offset_y / self.cell_size),
+        )
+    }
+    pub fn to_canvas_coords(&self, x: f64, y: f64) -> (f64, f64) {
+        (
+            (x - self.origin.0) * self.cell_size,
+            (y - self.origin.1) * self.cell_size,
         )
     }
     pub fn get_center(&self) -> (f64, f64) {

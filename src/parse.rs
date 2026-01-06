@@ -13,7 +13,6 @@ pub mod rle {
     use serde::{Deserialize, Serialize};
 
     thread_local! {
-            static ITEM_RE: RegExp = RegExp::new(r"\s*(\d*)([a-zA-Z\$\!])", "");
             static SECTION_RE: RegExp = RegExp::new(r"^#([a-zA-Z])(.*)$", "m");
             static HEADER_RE: RegExp = RegExp::new(
                 r"^\s*x\s*=\s*(\d+)\s*,?\s*y\s*=\s*(\d+)\s*(?:,?\s*rule\s*=\s*(\S+)\s*)?$","m"
@@ -176,7 +175,7 @@ pub mod rle {
             }
         }
     }
-    pub fn iter_alive(rle: &str) -> Result<RLEIterator, ()> {
+    pub fn iter_alive<'a>(rle: &'a str) -> Result<RLEIterator<'a>, ()> {
         RLEIterator::new(rle)
     }
 

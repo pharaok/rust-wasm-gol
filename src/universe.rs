@@ -35,7 +35,7 @@ impl Universe {
         let mut empty_ref = vec![0; 256];
         let node = Node::new_empty_leaf();
         empty_ref[LEAF_LEVEL as usize] = arena.insert(node);
-        for level in (LEAF_LEVEL as i32 + 1)..256i32 {
+        for level in (LEAF_LEVEL as i32 + 1)..256 {
             let node = Node::new_branch([empty_ref[(level - 1) as usize]; 4], level as u8, 0);
             empty_ref[level as usize] = arena.insert(node);
         }
@@ -75,10 +75,10 @@ impl Universe {
     pub fn get_level(&self) -> u8 {
         self.arena.get(self.root).level
     }
-    fn _get_node(&self, x: i64, y: i64, level: u8, cur: NodeRef) -> NodeRef {
-        let node = self.arena.get(cur);
+    fn _get_node(&self, x: i64, y: i64, level: u8, curr: NodeRef) -> NodeRef {
+        let node = self.arena.get(curr);
         if node.level <= level {
-            return cur;
+            return curr;
         }
 
         let (xx, yy) = Node::normalize_coords(x, y, node.level - 1);
@@ -93,9 +93,9 @@ impl Universe {
         y: i64,
         node_level: u8,
         node_ref: NodeRef,
-        cur: NodeRef,
+        curr: NodeRef,
     ) -> (NodeRef, u64) {
-        let node = *self.arena.get(cur);
+        let node = *self.arena.get(curr);
         if node.level <= node_level {
             return (node_ref, self.arena.get(node_ref).population);
         }
@@ -199,8 +199,8 @@ impl Universe {
         self.root = next;
     }
 
-    fn step_node(&mut self, node_ref: NodeRef, mut step: i32) -> (NodeRef, u64) {
-        let node = self.arena.get(node_ref);
+    fn step_node(&mut self, curr: NodeRef, mut step: i32) -> (NodeRef, u64) {
+        let node = self.arena.get(curr);
         let level = node.level;
         step = step.min(node.level as i32 - 2);
 
@@ -342,8 +342,8 @@ impl Universe {
     pub fn clear(&mut self) {
         self.root = self.empty_ref[self.get_level() as usize];
     }
-    fn _get(&self, x: i64, y: i64, node_ref: NodeRef) -> u8 {
-        let node = self.arena.get(node_ref);
+    fn _get(&self, x: i64, y: i64, curr: NodeRef) -> u8 {
+        let node = self.arena.get(curr);
         let half = 1i64 << (node.level - 1);
         if !(-half <= x && x < half && -half <= y && y < half) {
             return 0;
@@ -359,8 +359,8 @@ impl Universe {
     pub fn get(&self, x: i64, y: i64) -> u8 {
         self._get(x, y, self.root)
     }
-    fn _set(&mut self, x: i64, y: i64, value: u8, node_ref: NodeRef) -> (NodeRef, i64) {
-        let node = *self.arena.get(node_ref);
+    fn _set(&mut self, x: i64, y: i64, value: u8, curr: NodeRef) -> (NodeRef, i64) {
+        let node = *self.arena.get(curr);
         let mut dpop = 0;
 
         let Node {
@@ -417,9 +417,9 @@ impl Universe {
         x2: i64,
         y2: i64,
         grid: &mut Vec<Vec<u8>>,
-        node_ref: NodeRef,
+        curr: NodeRef,
     ) {
-        let node = self.arena.get(node_ref);
+        let node = self.arena.get(curr);
         let half = 1i64 << (node.level - 1);
         if x1 >= half || y1 >= half || x2 < -half || y2 < -half || node.population == 0 {
             return;
@@ -452,19 +452,13 @@ impl Universe {
     pub fn set_rect(&mut self, x: i64, y: i64, grid: &Vec<Vec<u8>>) {
         self.root = self._set_rect(x, y, grid, self.root).0;
     }
-    fn _set_rect(
-        &mut self,
-        x: i64,
-        y: i64,
-        grid: &Vec<Vec<u8>>,
-        node_ref: NodeRef,
-    ) -> (NodeRef, u64) {
-        let node = *self.arena.get(node_ref);
+    fn _set_rect(&mut self, x: i64, y: i64, grid: &Vec<Vec<u8>>, curr: NodeRef) -> (NodeRef, u64) {
+        let node = *self.arena.get(curr);
         let half = 1i64 << (node.level - 1);
         let (w, h) = (grid[0].len(), grid.len());
 
         if x >= half || y >= half || x + (w as i64) < -half || y + (h as i64) < -half {
-            return (node_ref, 0);
+            return (curr, 0);
         }
 
         if let NodeKind::Leaf(v) = node.data {
@@ -502,8 +496,8 @@ impl Universe {
         }
     }
 
-    fn _get_bound(&self, bound: &Bound, cur: NodeRef, left: i64, top: i64) -> i64 {
-        let node = self.arena.get(cur);
+    fn _get_bound(&self, bound: &Bound, curr: NodeRef, left: i64, top: i64) -> i64 {
+        let node = self.arena.get(curr);
         let worst = match bound {
             Bound::Top | Bound::Left => i64::MAX,
             Bound::Bottom | Bound::Right => i64::MIN,

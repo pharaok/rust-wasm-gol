@@ -93,7 +93,7 @@ pub fn Status() -> impl IntoView {
                             let gc = gc.as_mut().unwrap();
                             let (t, l, b, r) = universe.with(|u| u.get_bounding_rect());
                             gc.fit_rect(t as f64, l as f64, (r - l + 1) as f64, (b - l + 1) as f64);
-                            gc.zoom_at_center(0.6);
+                            gc.zoom_at_center(0.8);
                         });
                 })>{ratio}</Item>
                 <Divider />

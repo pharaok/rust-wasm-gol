@@ -1,5 +1,5 @@
 use crate::{
-    components::{Canvas, Controls, Menu, MenuTrigger, PatternLibrary, Status},
+    components::{Canvas, Controls, Menu, MenuTrigger, PatternLibrary, SelectionMenu, Status},
     draw::GolCanvas,
     parse::rle::{self, PatternMetadata},
     universe::Universe,
@@ -41,13 +41,17 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
     // WARN: a large Universe results in catastrophic cancellation in
     // draw_node, which causes issues with rendering and panning.
     let (universe, set_universe) =
-        signal_local(Universe::with_size_and_arena_capacity(50, 1 << 24));
+        signal_local(Universe::with_size_and_arena_capacity(20, 1 << 24));
     let (canvas, set_canvas) = signal_local::<Option<GolCanvas>>(None);
     let (cursor, set_cursor) = signal_local((0.0, 0.0));
     let (is_ticking, set_is_ticking) = signal_local(false);
-    let offset_to_grid =
-        move |x: i32, y: i32| canvas.with(|gc| gc.as_ref().unwrap().to_grid(x as f64, y as f64));
+    let offset_to_grid = move |x: i32, y: i32| {
+        canvas.with(|gc| gc.as_ref().unwrap().to_world_coords(x as f64, y as f64))
+    };
     let pan = StoredValue::<Option<(f64, f64)>>::new(None);
+    let (selection_start, set_selection_start) = signal_local::<Option<(i64, i64)>>(None);
+    let (selection_end, set_selection_end) = signal_local::<Option<(i64, i64)>>(None);
+    let (is_selection_menu_shown, set_is_selection_menu_shown) = signal_local(false);
     let tps = StoredValue::new(20.0);
 
     provide_context(GolContext {
@@ -114,7 +118,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                     let (t, l, b, r) = universe.with_untracked(|u| u.get_bounding_rect());
                     gc.fit_rect(l as f64, t as f64, (r - l + 1) as f64, (b - t + 1) as f64);
                 }
-                gc.zoom_at_center(0.6);
+                gc.zoom_at_center(0.8);
             });
         }
         is_dirty.set_value(true);
@@ -152,7 +156,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
     });
 
     view! {
-        <div class="absolute inset-0 w-screen h-screen">
+        <div class="absolute inset-0 w-screen h-screen overflow-hidden">
             <div
                 on:contextmenu=move |ev| ev.prevent_default()
                 on:mousedown=move |ev| {
@@ -168,9 +172,18 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                                     let v = u.get(x, y);
                                     u.set(x, y, v ^ 1);
                                 });
+                            set_selection_start.set(None);
+                            set_selection_end.set(None);
+                            set_is_selection_menu_shown.set(false);
                         }
                         1 => {
                             pan.set_value(Some((x, y)));
+                        }
+                        2 => {
+                            set_selection_start.set(Some((x.floor() as i64, y.floor() as i64)));
+                            set_selection_end.set(Some((x.floor() as i64, y.floor() as i64)));
+                            set_is_selection_menu_shown.set(false);
+                            ev.prevent_default();
                         }
                         _ => {}
                     }
@@ -188,11 +201,20 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                     } else {
                         set_cursor.set((x, y));
                     }
+                    if selection_start.get().is_some() && (ev.buttons() & 2) != 0 {
+                        set_selection_end.set(Some((x.floor() as i64, y.floor() as i64)));
+                    }
                 }
 
                 on:mouseup=move |ev| {
-                    if ev.button() == 1 {
-                        pan.set_value(None);
+                    match ev.button() {
+                        1 => {
+                            pan.set_value(None);
+                        }
+                        2 => {
+                            set_is_selection_menu_shown.set(true);
+                        }
+                        _ => {}
                     }
                 }
 
@@ -217,8 +239,69 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
 
                 <Canvas canvas=canvas set_canvas=set_canvas />
             </div>
+            <div
+                class="absolute bg-red-600/25 border border-px border-red-600 pointer-events-none"
+                style:visibility=move || {
+                    if selection_start.get().is_some() { "visible" } else { "hidden" }
+                }
+                style:inset=move || {
+                    canvas
+                        .with(|gc| {
+                            if let Some((sx, sy)) = selection_start.get()
+                                && let Some((ex, ey)) = selection_end.get() && let Some(gc) = gc
+                            {
+                                let (width, height) = (gc.canvas_width(), gc.canvas_height());
+                                let (mut l, mut t) = gc.to_canvas_coords(sx as f64, sy as f64);
+                                let (mut r, mut b) = gc.to_canvas_coords(ex as f64, ey as f64);
+                                (l, r) = if l < r { (l, r) } else { (r, l) };
+                                (t, b) = if t < b { (t, b) } else { (b, t) };
+                                r += gc.cell_size;
+                                b += gc.cell_size;
+                                format!(
+                                    "{}px {}px {}px {}px",
+                                    t.floor(),
+                                    width as f64 - r.floor(),
+                                    height as f64 - b.floor(),
+                                    l.floor(),
+                                )
+                            } else {
+                                "9999px".to_owned()
+                            }
+                        })
+                }
+            ></div>
+            <div
+                class="z-10 absolute flex justify-end items-start"
+                style:inset=move || {
+                    canvas
+                        .with(|gc| {
+                            if let Some((sx, sy)) = selection_start.get()
+                                && let Some((ex, ey)) = selection_end.get() && let Some(gc) = gc
+                            {
+                                let (width, _) = (gc.canvas_width(), gc.canvas_height());
+                                let (l, t) = gc.to_canvas_coords(sx as f64, sy as f64);
+                                let (mut r, mut b) = gc.to_canvas_coords(ex as f64, ey as f64);
+                                r = r.max(l);
+                                b = b.max(t);
+                                r += gc.cell_size;
+                                b += gc.cell_size;
+                                format!(
+                                    "{}px {}px -9999px -9999px",
+                                    b.floor() + 16.0,
+                                    width as f64 - r.floor(),
+                                )
+                            } else {
+                                "9999px".to_owned()
+                            }
+                        })
+                }
+            >
+                <Show when=is_selection_menu_shown fallback=|| view! {}>
+                    <SelectionMenu />
+                </Show>
+            </div>
             <div on:click=|e| e.stop_propagation()>
-                <div class="z-10 absolute bottom-4 left-[50%] -translate-x-[50%]">
+                <div class="z-10 absolute bottom-8 left-[50%] -translate-x-[50%]">
                     <Controls />
                 </div>
                 <div class="absolute bottom-0 inset-x-0">

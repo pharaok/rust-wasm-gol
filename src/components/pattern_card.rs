@@ -1,10 +1,10 @@
 use crate::{
     app::fetch_pattern,
-    components::{Canvas, Loading, Text},
+    components::{Loading, Text},
     draw::GolCanvas,
     parse::rle::{self, PatternMetadata},
 };
-use leptos::{logging, prelude::*};
+use leptos::prelude::*;
 use leptos_router::components::*;
 
 #[component]
@@ -30,7 +30,6 @@ pub fn PatternCard(#[prop(into)] pattern: Signal<PatternMetadata, LocalStorage>)
                 <div class="relative w-full aspect-square flex justify-center items-center bg-black">
                     <Show
                         when=move || true
-
                         fallback=move || {
                             view! { <Loading /> }
                         }
