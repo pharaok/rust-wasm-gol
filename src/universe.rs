@@ -1,9 +1,8 @@
 use crate::{
     arena::Arena,
-    parse::rle::{self, PatternMetadata},
+    parse::rle,
     quadtree::{Branch, Leaf, Node, NodeKind, NodeRef, LEAF_LEVEL, LEAF_SIZE},
 };
-use regex::Regex;
 use rustc_hash::FxHashMap;
 
 type Key = (NodeKind, i32); // (node, generations)
@@ -26,7 +25,7 @@ pub struct Universe {
 pub const ARENA_SIZE: usize = 1 << 10;
 impl Default for Universe {
     fn default() -> Self {
-        Self::with_size(16)
+        Self::with_size(10)
     }
 }
 impl Universe {
@@ -82,7 +81,7 @@ impl Universe {
             return cur;
         }
 
-        let (xx, yy) = Self::normalize_coords(x, y, node.level - 1);
+        let (xx, yy) = Node::normalize_coords(x, y, node.level - 1);
         self._get_node(xx, yy, level, node.get_child(x, y))
     }
     pub fn get_node(&self, x: i64, y: i64, level: u8) -> NodeRef {
@@ -96,18 +95,32 @@ impl Universe {
         node_ref: NodeRef,
         cur: NodeRef,
     ) -> (NodeRef, u64) {
-        let mut node = *self.arena.get(cur);
+        let node = *self.arena.get(cur);
         if node.level <= level {
             return (node_ref, self.arena.get(node_ref).population);
         }
 
-        let (xx, yy) = Self::normalize_coords(x, y, node.level - 1);
+        let (xx, yy) = Node::normalize_coords(x, y, node.level - 1);
         let child = self.arena.get(node.get_child(x, y));
-        node.population -= child.population;
-        let (new_child, p) = self._set_node(xx, yy, level, node_ref, node.get_child(x, y));
-        *node.get_child_mut(x, y) = new_child;
-        node.population += p;
-        (self.arena.insert(node), node.population)
+        if let Node {
+            data: NodeKind::Branch(mut children),
+            level,
+            mut population,
+        } = node
+        {
+            population -= child.population;
+            let i = Node::get_child_index(x, y);
+            let (new_child, p) = self._set_node(xx, yy, level, node_ref, children[i]);
+            children[i] = new_child;
+            population += p;
+            (
+                self.arena
+                    .insert(Node::new_branch(children, level, population)),
+                node.population,
+            )
+        } else {
+            panic!()
+        }
     }
     pub fn set_node(&mut self, x: i64, y: i64, level: u8, node_ref: NodeRef) {
         self.root = self._set_node(x, y, level, node_ref, self.root).0;
@@ -327,20 +340,6 @@ impl Universe {
         (new_node, population)
     }
 
-    pub fn normalize_coords(x: i64, y: i64, level: u8) -> (i64, i64) {
-        let half = 1i64 << (level - 1);
-        (x.rem_euclid(2 * half) - half, y.rem_euclid(2 * half) - half)
-    }
-    pub fn child_offset(i: usize, (x, y): (i64, i64), half: i64) -> (i64, i64) {
-        match i {
-            0 => (x, y),
-            1 => (x + half, y),
-            2 => (x, y + half),
-            3 => (x + half, y + half),
-            _ => unreachable!(),
-        }
-    }
-
     pub fn clear(&mut self) {
         self.root = self.empty_ref[self.get_level() as usize];
     }
@@ -354,7 +353,7 @@ impl Universe {
         if node.is_leaf() {
             node.data.as_leaf()[(y + half) as usize][(x + half) as usize]
         } else {
-            let (cx, cy) = Self::normalize_coords(x, y, node.level - 1);
+            let (cx, cy) = Node::normalize_coords(x, y, node.level - 1);
             self._get(cx, cy, node.get_child(x, y))
         }
     }
@@ -362,28 +361,39 @@ impl Universe {
         self._get(x, y, self.root)
     }
     fn _set(&mut self, x: i64, y: i64, value: u8, node_ref: NodeRef) -> (NodeRef, i64) {
-        let mut node = *self.arena.get(node_ref);
+        let node = *self.arena.get(node_ref);
         let mut dpop = 0;
-        if node.is_leaf() {
-            let s = (LEAF_SIZE / 2) as i64;
-            let data = node.data.as_leaf_mut();
-            dpop -= data[(y + s) as usize][(x + s) as usize] as i64;
-            data[(y + s) as usize][(x + s) as usize] = value;
-            dpop += data[(y + s) as usize][(x + s) as usize] as i64;
-        } else {
-            let (cx, cy) = Self::normalize_coords(x, y, node.level - 1);
-            let [nw, ne, sw, se] = *node.data.as_branch();
-            let (child, d) = match (x < 0, y < 0) {
-                (true, true) => self._set(cx, cy, value, nw),
-                (false, true) => self._set(cx, cy, value, ne),
-                (true, false) => self._set(cx, cy, value, sw),
-                (false, false) => self._set(cx, cy, value, se),
-            };
-            *node.get_child_mut(x, y) = child;
-            dpop = d;
-        }
-        node.population = (node.population as i64 + dpop) as u64;
-        (self.arena.insert(node), dpop)
+
+        let Node {
+            mut data,
+            level,
+            mut population,
+        } = node;
+        match &mut data {
+            NodeKind::Branch(children) => {
+                let (cx, cy) = Node::normalize_coords(x, y, node.level - 1);
+                let i = Node::get_child_index(x, y);
+                let (new_child, d) = self._set(cx, cy, value, children[i]);
+                children[i] = new_child;
+                dpop = d;
+            }
+            NodeKind::Leaf(data) => {
+                let s = (LEAF_SIZE / 2) as i64;
+                dpop -= data[(y + s) as usize][(x + s) as usize] as i64;
+                data[(y + s) as usize][(x + s) as usize] = value;
+                dpop += data[(y + s) as usize][(x + s) as usize] as i64;
+            }
+        };
+        population = (population as i64 + dpop) as u64;
+
+        (
+            self.arena.insert(Node {
+                data,
+                level,
+                population,
+            }),
+            dpop,
+        )
     }
     pub fn set(&mut self, x: i64, y: i64, value: u8) {
         self.root = self._set(x, y, value, self.root).0;
@@ -493,7 +503,7 @@ impl Universe {
         }
     }
 
-    fn _get_bound(&self, bound: &Bound, cur: NodeRef, tl: (i64, i64)) -> i64 {
+    fn _get_bound(&self, bound: &Bound, cur: NodeRef, left: i64, top: i64) -> i64 {
         let node = self.arena.get(cur);
         let worst = match bound {
             Bound::Top | Bound::Left => i64::MAX,
@@ -518,10 +528,10 @@ impl Universe {
                     for (x, cell) in row.iter().enumerate() {
                         if *cell != 0 {
                             match bound {
-                                Bound::Top => take(tl.1 + y as i64),
-                                Bound::Left => take(tl.0 + x as i64),
-                                Bound::Bottom => take(tl.1 + y as i64),
-                                Bound::Right => take(tl.0 + x as i64),
+                                Bound::Top => take(top + y as i64),
+                                Bound::Left => take(left + x as i64),
+                                Bound::Bottom => take(top + y as i64),
+                                Bound::Right => take(left + x as i64),
                             };
                         }
                     }
@@ -538,14 +548,16 @@ impl Universe {
                 let mut found = false;
                 for i in a {
                     let c = self.arena.get(children[i]);
+                    let (dx, dy) = Node::get_child_offset(i, h);
                     if c.population != 0 {
-                        take(self._get_bound(bound, children[i], Self::child_offset(i, tl, h)));
+                        take(self._get_bound(bound, children[i], left + dx, top + dy));
                         found = true;
                     }
                 }
                 if !found {
                     for i in b {
-                        take(self._get_bound(bound, children[i], Self::child_offset(i, tl, h)))
+                        let (dx, dy) = Node::get_child_offset(i, h);
+                        take(self._get_bound(bound, children[i], left + dx, top + dy))
                     }
                 }
             }
@@ -555,10 +567,10 @@ impl Universe {
     pub fn get_bounding_rect(&self) -> (i64, i64, i64, i64) {
         let h = 1i64 << (self.get_level() - 1);
         (
-            self._get_bound(&Bound::Top, self.root, (-h, -h)),
-            self._get_bound(&Bound::Left, self.root, (-h, -h)),
-            self._get_bound(&Bound::Bottom, self.root, (-h, -h)),
-            self._get_bound(&Bound::Right, self.root, (-h, -h)),
+            self._get_bound(&Bound::Top, self.root, -h, -h),
+            self._get_bound(&Bound::Left, self.root, -h, -h),
+            self._get_bound(&Bound::Bottom, self.root, -h, -h),
+            self._get_bound(&Bound::Right, self.root, -h, -h),
         )
     }
 }

@@ -29,19 +29,7 @@ impl NodeKind {
             _ => panic!(),
         }
     }
-    pub fn as_leaf_mut(&mut self) -> &mut Leaf {
-        match self {
-            Self::Leaf(v) => v,
-            _ => panic!(),
-        }
-    }
     pub fn as_branch(&self) -> &[NodeRef; 4] {
-        match self {
-            Self::Branch(children) => children,
-            _ => panic!(),
-        }
-    }
-    pub fn as_branch_mut(&mut self) -> &mut [NodeRef; 4] {
         match self {
             Self::Branch(children) => children,
             _ => panic!(),
@@ -85,27 +73,32 @@ impl Node {
         }
     }
 
+    pub fn get_child_index(x: i64, y: i64) -> usize {
+        match (x < 0, y < 0) {
+            (true, true) => 0,
+            (false, true) => 1,
+            (true, false) => 2,
+            (false, false) => 3,
+        }
+    }
     pub fn get_child(&self, x: i64, y: i64) -> NodeRef {
         match self.data {
-            NodeKind::Branch([nw, ne, sw, se]) => match (x < 0, y < 0) {
-                (true, true) => nw,
-                (false, true) => ne,
-                (true, false) => sw,
-                (false, false) => se,
-            },
+            NodeKind::Branch(children) => children[Self::get_child_index(x, y)],
             NodeKind::Leaf(_) => panic!(),
         }
     }
-    pub fn get_child_mut(&mut self, x: i64, y: i64) -> &mut NodeRef {
-        match &mut self.data {
-            NodeKind::Branch([nw, ne, sw, se]) => match (x < 0, y < 0) {
-                (true, true) => nw,
-                (false, true) => ne,
-                (true, false) => sw,
-                (false, false) => se,
-            },
-            NodeKind::Leaf(_) => panic!(),
+    pub fn get_child_offset(i: usize, half: i64) -> (i64, i64) {
+        match i {
+            0 => (0, 0),
+            1 => (half, 0),
+            2 => (0, half),
+            3 => (half, half),
+            _ => unreachable!(),
         }
+    }
+    pub fn normalize_coords(x: i64, y: i64, level: u8) -> (i64, i64) {
+        let half = 1i64 << (level - 1);
+        (x.rem_euclid(2 * half) - half, y.rem_euclid(2 * half) - half)
     }
 
     pub fn is_leaf(&self) -> bool {
