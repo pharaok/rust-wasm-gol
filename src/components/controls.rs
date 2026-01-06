@@ -1,9 +1,8 @@
-use leptos::prelude::*;
-
 use crate::{
     app::GolContext,
     components::{Button, ButtonVariant, Divider, Icon},
 };
+use leptos::prelude::*;
 
 #[component]
 pub fn Controls() -> impl IntoView {
