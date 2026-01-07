@@ -1,9 +1,10 @@
+use std::collections::VecDeque;
+
 use crate::{
     arena::Arena,
     parse::rle,
     quadtree::{Branch, LEAF_LEVEL, LEAF_SIZE, Leaf, Node, NodeKind, NodeRef},
 };
-use leptos::logging;
 use rustc_hash::FxHashMap;
 
 type Key = (NodeKind, i32); // (node, generations)
@@ -619,10 +620,86 @@ impl Universe {
     pub fn get_bounding_rect(&self) -> (i64, i64, i64, i64) {
         let h = 1i64 << (self.get_level() - 1);
         (
-            self._get_bound(&Bound::Top, self.root, -h, -h),
             self._get_bound(&Bound::Left, self.root, -h, -h),
-            self._get_bound(&Bound::Bottom, self.root, -h, -h),
+            self._get_bound(&Bound::Top, self.root, -h, -h),
             self._get_bound(&Bound::Right, self.root, -h, -h),
+            self._get_bound(&Bound::Bottom, self.root, -h, -h),
         )
+    }
+}
+
+pub struct UniverseIterator<'a> {
+    universe: &'a Universe,
+    stack: VecDeque<(NodeRef, i64, i64)>,
+    leaf_queue: VecDeque<(i64, i64)>,
+    x1: i64,
+    y1: i64,
+    x2: i64,
+    y2: i64,
+}
+
+impl<'a> Iterator for UniverseIterator<'a> {
+    type Item = (i64, i64);
+    fn next(&mut self) -> Option<Self::Item> {
+        if !self.leaf_queue.is_empty() {
+            return Some(self.leaf_queue.pop_front().unwrap());
+        }
+
+        while !self.stack.is_empty() {
+            let (node_ref, left, top) = self.stack.pop_back().unwrap();
+            let node = self.universe.arena.get(node_ref);
+            if node.population == 0 {
+                continue;
+            }
+
+            match node.data {
+                NodeKind::Leaf(data) => {
+                    for i in 0..LEAF_SIZE * LEAF_SIZE {
+                        let (y, x) = ((i / LEAF_SIZE) as i64, (i % LEAF_SIZE) as i64);
+                        if self.x1 <= left + x
+                            && left + x <= self.x2
+                            && self.y1 <= top + y
+                            && top + y <= self.y2
+                            && data[y as usize][x as usize] != 0
+                        {
+                            self.leaf_queue.push_back((left + x, top + y));
+                        }
+                    }
+                    if !self.leaf_queue.is_empty() {
+                        return Some(self.leaf_queue.pop_front().unwrap());
+                    }
+                }
+                NodeKind::Branch(children) => {
+                    let half = 1i64 << (node.level - 1);
+                    for (i, child) in children.iter().enumerate().rev() {
+                        let (ox, oy) = Node::get_child_offset(i, node.level);
+                        let (cx1, cy1) = (left + ox, top + oy);
+                        let (cx2, cy2) = (cx1 + half, cy1 + half);
+                        if !(cx2 < self.x1 || cy2 < self.y1 || cx1 > self.x2 || cy1 > self.y2) {
+                            self.stack.push_back((*child, left + ox, top + oy));
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+}
+impl Universe {
+    pub fn iter_alive(&self) -> UniverseIterator<'_> {
+        let half = 1i64 << (self.get_level() - 1);
+        self.iter_alive_in_rect(-half, -half, half - 1, half - 1)
+    }
+    pub fn iter_alive_in_rect(&self, x1: i64, y1: i64, x2: i64, y2: i64) -> UniverseIterator<'_> {
+        let half = 1i64 << (self.get_level() - 1);
+        UniverseIterator {
+            universe: self,
+            stack: VecDeque::from([(self.root, -half, -half)]),
+            leaf_queue: VecDeque::new(),
+            x1,
+            y1,
+            x2,
+            y2,
+        }
     }
 }

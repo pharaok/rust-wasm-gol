@@ -37,7 +37,7 @@ pub fn MenuTrigger(children: Children) -> impl IntoView {
     view! {
         <div class="absolute top-16 left-0 -translate-x-full [writing-mode:sideways-lr]">
             <Button
-                class="font-mono rounded-r-none px-1"
+                class="rounded-r-none px-1"
                 on_press=move || {
                     set_open.update(|b| *b = !*b);
                 }

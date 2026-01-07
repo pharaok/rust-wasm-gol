@@ -8,8 +8,11 @@ pub fn get_index(captures: &JsValue) -> usize {
         .unwrap() as usize
 }
 pub mod rle {
+    use crate::universe::UniverseIterator;
+
     use super::get_index;
     use js_sys::RegExp;
+    use leptos::logging;
     use serde::{Deserialize, Serialize};
 
     thread_local! {
@@ -189,46 +192,66 @@ pub mod rle {
         Ok(rect)
     }
 
-    fn item(count: usize, value: u8) -> String {
+    fn item(count: i64, value: &str) -> String {
         let count_str = if count > 1 {
             count.to_string()
         } else {
             "".to_string()
         };
 
-        format!("{}{}", count_str, if value == 0 { 'b' } else { 'o' })
+        count_str + value
     }
-    pub fn from_rect(grid: &Vec<Vec<u8>>) -> String {
-        let mut rle = format!("x = {}, y = {}\n", grid[0].len(), grid.len());
+    pub fn from_iter(iter: UniverseIterator, x1: i64, y1: i64, x2: i64, y2: i64) -> String {
+        let mut cells = iter.collect::<Vec<_>>();
+        cells.sort_by_key(|&(x, y)| (y, x));
+        let (width, height) = (x2 - x1 + 1, y2 - y1 + 1);
+
+        let mut items = Vec::new();
+        let (mut px, mut py) = (-1, 0);
+        let mut run = 0;
+        for (mut x, mut y) in cells {
+            x -= x1;
+            y -= y1;
+            let dy = y - py;
+            if dy > 0 {
+                if run > 0 {
+                    items.push(item(run, "o"));
+                    run = 0;
+                }
+                items.push(item(dy, "$"));
+                px = -1;
+            }
+            let dx = x - px - 1;
+            if dx > 0 {
+                if run > 0 {
+                    items.push(item(run, "o"));
+                    run = 0;
+                }
+                items.push(item(dx, "b"));
+            }
+            run += 1;
+
+            px = x;
+            py = y;
+        }
+        if run > 0 {
+            items.push(item(run, "o"));
+        }
+        while !items.is_empty() && items.last().unwrap().ends_with('b') {
+            items.pop();
+        }
+        items.push("!".to_owned());
+
+        let mut rle = format!("x = {}, y = {}\n", width, height);
         let mut line_len = 0;
-        let mut push_item = |item: &str| {
+        for item in items.iter() {
             line_len += item.len();
             if line_len > 70 {
                 rle.push('\n');
-                line_len = 0;
+                line_len = item.len();
             }
             rle.push_str(item);
-        };
-
-        let mut count = 0;
-        for row in grid {
-            let mut prev = row[0];
-            for cell in row {
-                if *cell != prev {
-                    push_item(&item(count, prev));
-                    prev = *cell;
-                    count = 0;
-                }
-                count += 1;
-            }
-            if prev != 0 {
-                push_item(&item(count, prev));
-            }
-            push_item("$");
-            count = 0;
         }
-        rle.pop();
-        rle.push('!');
         rle
     }
 }

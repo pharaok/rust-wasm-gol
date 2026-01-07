@@ -123,8 +123,13 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
             set_canvas.update(|gc| {
                 let gc = gc.as_mut().unwrap();
                 if universe.with_untracked(|u| u.get_population()) != 0 {
-                    let (t, l, b, r) = universe.with_untracked(|u| u.get_bounding_rect());
-                    gc.fit_rect(l as f64, t as f64, (r - l + 1) as f64, (b - t + 1) as f64);
+                    let (x1, y1, x2, y2) = universe.with_untracked(|u| u.get_bounding_rect());
+                    gc.fit_rect(
+                        x1 as f64,
+                        y1 as f64,
+                        (x2 - x1 + 1) as f64,
+                        (y2 - y1 + 1) as f64,
+                    );
                 }
                 gc.zoom_at_center(0.8);
             });
@@ -171,15 +176,14 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                     let (x, y) = offset_to_grid(ev.offset_x(), ev.offset_y());
                     match ev.button() {
                         0 => {
-                            if canvas.with(|gc| gc.as_ref().unwrap().cell_size) < 5.0 {
-                                return;
+                            if canvas.with(|gc| gc.as_ref().unwrap().cell_size) >= 5.0 {
+                                set_universe
+                                    .update(|u| {
+                                        let (x, y) = (x.floor() as i64, y.floor() as i64);
+                                        let v = u.get(x, y);
+                                        u.set(x, y, v ^ 1);
+                                    });
                             }
-                            set_universe
-                                .update(|u| {
-                                    let (x, y) = (x.floor() as i64, y.floor() as i64);
-                                    let v = u.get(x, y);
-                                    u.set(x, y, v ^ 1);
-                                });
                             set_selection_start.set(None);
                             set_selection_end.set(None);
                             set_is_selection_menu_shown.set(false);
@@ -248,7 +252,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                 <Canvas canvas=canvas set_canvas=set_canvas />
             </div>
             <div
-                class="absolute bg-red-600/25 border border-px border-red-600 pointer-events-none"
+                class="absolute bg-blue-600/25 border border-px border-blue-600 pointer-events-none"
                 style:visibility=move || {
                     if selection_start.get().is_some() { "visible" } else { "hidden" }
                 }

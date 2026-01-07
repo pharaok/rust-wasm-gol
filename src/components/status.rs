@@ -57,9 +57,9 @@ pub fn Status() -> impl IntoView {
     let ratio = move || {
         let cell_size = canvas.with(|gc| gc.as_ref().map(|gc| gc.cell_size).unwrap_or(1.0));
         if cell_size < 1.0 {
-            format!("1px:{}", metric_string(1.0 / cell_size))
+            format!("1:{}", metric_string(1.0 / cell_size))
         } else {
-            format!("{}px:1", metric_string(cell_size))
+            format!("{}:1", metric_string(cell_size))
         }
     };
 
@@ -73,7 +73,7 @@ pub fn Status() -> impl IntoView {
     };
 
     view! {
-        <div class="flex justify-between text-white text-sm font-mono">
+        <div class="flex justify-between text-white text-sm">
             <div>
                 <Item>{move || pattern_name}</Item>
             </div>
@@ -91,8 +91,13 @@ pub fn Status() -> impl IntoView {
                     set_canvas
                         .update(|gc| {
                             let gc = gc.as_mut().unwrap();
-                            let (t, l, b, r) = universe.with(|u| u.get_bounding_rect());
-                            gc.fit_rect(t as f64, l as f64, (r - l + 1) as f64, (b - l + 1) as f64);
+                            let (x1, y1, x2, y2) = universe.with(|u| u.get_bounding_rect());
+                            gc.fit_rect(
+                                y1 as f64,
+                                x1 as f64,
+                                (x2 - x1 + 1) as f64,
+                                (y2 - x1 + 1) as f64,
+                            );
                             gc.zoom_at_center(0.8);
                         });
                 })>{ratio}</Item>
