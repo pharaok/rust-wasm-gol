@@ -1,6 +1,6 @@
 use crate::{
     app::GolContext,
-    components::{Button, ButtonVariant, Divider, Icon},
+    components::{Button, ButtonVariant, Divider, Icon, ToastContext, use_toast},
     parse::rle,
 };
 use leptos::prelude::*;
@@ -25,6 +25,7 @@ pub fn SelectionMenu() -> impl IntoView {
     };
 
     let UseClipboardReturn { copy, .. } = use_clipboard();
+    let push_toast = use_toast();
     view! {
         <div class="rounded-lg pointer-events-auto flex overflow-hidden">
             <Button
@@ -74,6 +75,7 @@ pub fn SelectionMenu() -> impl IntoView {
                                 y2,
                             );
                             copy(&rle);
+                            push_toast.run("Copied RLE to clipboard!".to_owned());
                         });
                 }
             >

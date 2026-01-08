@@ -10,6 +10,7 @@ pub mod pattern_library;
 pub mod selection_menu;
 pub mod status;
 pub mod text;
+pub mod toast;
 
 pub use crate::components::button::*;
 pub use crate::components::canvas::*;
@@ -21,6 +22,7 @@ pub use crate::components::pattern_library::*;
 pub use crate::components::selection_menu::*;
 pub use crate::components::status::*;
 pub use crate::components::text::*;
+pub use crate::components::toast::*;
 
 #[component]
 pub fn Divider() -> impl IntoView {

@@ -10,11 +10,7 @@ pub struct MenuContext {
 }
 
 #[component]
-pub fn Menu(
-    // open: ReadSignal<bool>,
-    // set_open: WriteSignal<bool>,
-    children: ChildrenFn,
-) -> impl IntoView {
+pub fn Menu(children: ChildrenFn) -> impl IntoView {
     let (open, set_open) = signal_local(false);
     provide_context(MenuContext { open, set_open });
 
@@ -22,7 +18,7 @@ pub fn Menu(
         <Portal mount=document().body().unwrap()>
             <div class=move || {
                 format!(
-                    "fixed inset-y-0 right-0 bg-neutral-900 text-white transition-transform transition-300 {}",
+                    "fixed inset-y-0 right-0 bg-neutral-900 transition-transform transition-300 {}",
                     if open.get() { "translate-x-0" } else { "translate-x-full" },
                 )
             }>{children()}</div>

@@ -23,7 +23,7 @@ where
         <button
             class=move || {
                 tw_merge!(
-                    "transition text-white disabled:text-neutral-500 bg-neutral-900 enabled:hover:bg-neutral-800",
+                    "transition disabled:text-neutral-500 bg-neutral-900 enabled:hover:bg-neutral-800",
                     match variant { ButtonVariant::Standard => "rounded-md p-2", ButtonVariant::Icon
                     => "flex justify-center items-center p-2", }, class.get().to_string()
                 )

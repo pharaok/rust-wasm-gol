@@ -73,7 +73,7 @@ pub fn Status() -> impl IntoView {
     };
 
     view! {
-        <div class="flex justify-between text-white text-sm">
+        <div class="flex justify-between text-sm">
             <div>
                 <Item>{move || pattern_name}</Item>
             </div>

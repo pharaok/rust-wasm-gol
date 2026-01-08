@@ -5,7 +5,10 @@ use leptos::prelude::*;
 use leptos_use::use_raf_fn;
 use web_sys::js_sys;
 
-type LoadingContext = ReadSignal<Option<GolCanvas>, LocalStorage>;
+#[derive(Clone)]
+pub struct LoadingContext {
+    pub global_canvas: ReadSignal<Option<GolCanvas>, LocalStorage>,
+}
 
 #[component]
 pub fn LoadingCanvasProvider(children: Children) -> impl IntoView {
@@ -49,7 +52,9 @@ pub fn LoadingCanvasProvider(children: Children) -> impl IntoView {
         }
     });
 
-    provide_context(canvas);
+    provide_context(LoadingContext {
+        global_canvas: canvas,
+    });
 
     view! {
         {children()}
@@ -60,7 +65,7 @@ pub fn LoadingCanvasProvider(children: Children) -> impl IntoView {
 #[component]
 pub fn Loading() -> impl IntoView {
     let canvas_ref = NodeRef::<html::Canvas>::new();
-    let global_canvas = use_context::<LoadingContext>().unwrap();
+    let LoadingContext { global_canvas } = use_context::<LoadingContext>().unwrap();
     let (canvas, set_canvas) = signal_local::<Option<GolCanvas>>(None);
 
     Effect::new(move || {
