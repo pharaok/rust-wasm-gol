@@ -107,8 +107,8 @@ pub mod rle {
         rle: &'a str,
         i: usize,
         count: usize,
-        x: usize,
-        y: usize,
+        x: i64,
+        y: i64,
     }
     impl<'a> RLEIterator<'a> {
         pub fn new(rle: &'a str) -> Result<Self, ()> {
@@ -124,7 +124,7 @@ pub mod rle {
         }
     }
     impl<'a> Iterator for RLEIterator<'a> {
-        type Item = (usize, usize);
+        type Item = (i64, i64);
 
         fn next(&mut self) -> Option<Self::Item> {
             if self.count > 0 {
@@ -160,12 +160,12 @@ pub mod rle {
                 match tag {
                     '!' => return None,
                     '$' => {
-                        self.y += self.count;
+                        self.y += self.count as i64;
                         self.x = 0;
                         self.count = 0;
                     }
                     'b' | 'B' => {
-                        self.x += self.count;
+                        self.x += self.count as i64;
                         self.count = 0;
                     }
                     _ => {
@@ -186,7 +186,7 @@ pub mod rle {
             parse_metadata(rle, "Unnamed Pattern", "")?;
         let mut rect = vec![vec![0; width]; height];
         for (x, y) in iter_alive(rle)? {
-            rect[y][x] = 1;
+            rect[y as usize][x as usize] = 1;
         }
         Ok(rect)
     }

@@ -1,4 +1,4 @@
-use crate::universe::Universe;
+use crate::{parse::rle, universe::Universe};
 
 pub const META_CELL_LEVEL: u8 = 11;
 pub const META_CELL_SIZE: i64 = 1 << META_CELL_LEVEL;
@@ -15,11 +15,19 @@ impl Universe {
         let h = 1 << (width + 2).max(height + 2).ilog2();
         let (extra_width, extra_height) = (2 * h - width, 2 * h - height);
 
-        self.set_rle(-5, -5, meta_off_rle);
+        let off_points = rle::iter_alive(meta_off_rle)
+            .unwrap()
+            .map(|p| (p.0 - 5, p.1 - 5))
+            .collect::<Vec<_>>();
+        self.set_points(&off_points);
         let meta_off_ref = self.get_node(0, 0, META_CELL_LEVEL);
         self.clear();
 
-        self.set_rle(-5, -5, meta_on_rle);
+        let on_points = rle::iter_alive(meta_on_rle)
+            .unwrap()
+            .map(|p| (p.0 - 5, p.1 - 5))
+            .collect::<Vec<_>>();
+        self.set_points(&on_points);
         let meta_on_ref = self.get_node(0, 0, META_CELL_LEVEL);
         self.clear();
 

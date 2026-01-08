@@ -111,6 +111,27 @@ impl Node {
             _ => unreachable!(),
         }
     }
+    pub fn partition_points_mut(
+        points: &mut [(i64, i64)],
+        level: u8,
+        left: i64,
+        top: i64,
+    ) -> [&mut [(i64, i64)]; 4] {
+        let half = 1i64 << (level - 1);
+
+        let split_y = points.iter_mut().partition_in_place(|p| p.1 < top + half);
+        let (n_points, s_points) = points.split_at_mut(split_y);
+
+        let split_nx = n_points
+            .iter_mut()
+            .partition_in_place(|p| p.0 < left + half);
+        let split_sx = s_points
+            .iter_mut()
+            .partition_in_place(|p| p.0 < left + half);
+        let (nw_points, ne_points) = n_points.split_at_mut(split_nx);
+        let (sw_points, se_points) = s_points.split_at_mut(split_sx);
+        [nw_points, ne_points, sw_points, se_points]
+    }
 
     pub fn is_leaf(&self) -> bool {
         matches!(self.data, NodeKind::Leaf(_))

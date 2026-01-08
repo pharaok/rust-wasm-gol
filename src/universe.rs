@@ -5,6 +5,7 @@ use crate::{
     parse::rle,
     quadtree::{Branch, LEAF_LEVEL, LEAF_SIZE, Leaf, Node, NodeKind, NodeRef},
 };
+use leptos::logging;
 use rustc_hash::FxHashMap;
 
 type Key = (NodeKind, i32); // (node, generations)
@@ -55,6 +56,52 @@ impl Universe {
     }
     pub fn with_size(size: u8) -> Self {
         Self::with_size_and_arena_capacity(size, ARENA_SIZE)
+    }
+
+    pub fn _set_points(
+        &mut self,
+        points: &mut [(i64, i64)],
+        level: u8,
+        left: i64,
+        top: i64,
+    ) -> (NodeRef, u64) {
+        if points.is_empty() {
+            return (self.empty_ref[level as usize], 0);
+        }
+        if level == LEAF_LEVEL {
+            let mut data = Leaf::default();
+            let mut pop = 0;
+            for (x, y) in points {
+                data[(*y - top) as usize][(*x - left) as usize] = 1;
+                pop += 1;
+            }
+            (self.arena.insert(Node::new_leaf(data, pop)), pop)
+        } else {
+            let parts = Node::partition_points_mut(points, level, left, top);
+            let mut children = Branch::default();
+            let mut pop = 0;
+            for (i, child) in children.iter_mut().enumerate() {
+                let (ox, oy) = Node::get_child_offset(i, level);
+                let (c, c_pop) = self._set_points(parts[i], level - 1, left + ox, top + oy);
+                *child = c;
+                pop += c_pop;
+            }
+
+            (
+                self.arena.insert(Node::new_branch(children, level, pop)),
+                pop,
+            )
+        }
+    }
+    pub fn set_points(&mut self, points: &[(i64, i64)]) {
+        let q = 1i64 << (self.get_level() - 2);
+        let mut points = points
+            .iter()
+            .map(|p| (p.0 + q, p.1 + q))
+            .collect::<Vec<_>>();
+        self.root = self
+            ._set_points(&mut points, self.get_level(), -2 * q, -2 * q)
+            .0;
     }
 
     pub fn new_node(&self, level: u8) -> Node {
@@ -552,7 +599,7 @@ impl Universe {
     }
     pub fn set_rle(&mut self, x: i64, y: i64, rle: &str) {
         for (xx, yy) in rle::iter_alive(rle).unwrap() {
-            self.set(x + xx as i64, y + yy as i64, 1);
+            self.set(x + xx, y + yy, 1);
         }
     }
 

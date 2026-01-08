@@ -9,6 +9,7 @@ use leptos::{logging, prelude::*};
 use leptos_router::hooks::*;
 use leptos_router::params::Params;
 use leptos_use::use_raf_fn;
+use web_sys::console;
 
 #[derive(Params, PartialEq)]
 pub struct GolParams {
@@ -117,7 +118,10 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                         u.set_rect_meta(&rect, &on_rle, &off_rle);
                     }
                 } else {
-                    u.set_rle(-(w as i64) / 2, -(h as i64) / 2, &rle);
+                    console::time_with_label("loadin");
+                    let points = rle::iter_alive(&rle).unwrap().collect::<Vec<_>>();
+                    u.set_points(&points);
+                    console::time_end_with_label("loadin");
                 }
             });
             set_canvas.update(|gc| {
