@@ -162,17 +162,19 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
             universe.with(|u| {
                 let root = u.arena.get(u.root);
                 let half = (1i64 << (root.level - 1)) as f64;
-                gc.draw_node(u, -half - gc.origin.1, -half - gc.origin.0);
+                gc.draw_node(u, -half - gc.origin.0, -half - gc.origin.1);
             });
         });
         is_dirty.set_value(false);
     });
 
     let keys = StoredValue::<Vec<String>, LocalStorage>::new_local(Vec::new());
+    let did_pan = StoredValue::new_local(false);
 
     view! {
         <div class="absolute inset-0 w-screen h-screen overflow-hidden">
             <div
+                tabindex="0"
                 on:contextmenu=move |ev| ev.prevent_default()
                 on:mousedown=move |ev| {
                     if pan.get_value().is_some() {
@@ -196,6 +198,9 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                         }
                         (1, _) | (0, true) => {
                             pan.set_value(Some((x, y)));
+                            if is_space_held {
+                                did_pan.set_value(true);
+                            }
                         }
                         (2, false) => {
                             set_selection_start.set(Some((x.floor() as i64, y.floor() as i64)));
@@ -251,9 +256,29 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                             ks.push(ev.key())
                         }
                     });
+                    match ev.key().as_str() {
+                        "a" => {
+                            if ev.ctrl_key() {
+                                let (x1, y1, x2, y2) = universe.with(|u| u.get_bounding_rect());
+                                set_selection_start.set(Some((x1, y1)));
+                                set_selection_end.set(Some((x2, y2)));
+                                set_is_selection_menu_shown.set(true);
+                                ev.prevent_default();
+                            }
+                        }
+                        _ => {}
+                    }
                 }
                 on:keyup=move |ev| {
                     keys.update_value(|ks| ks.retain(|k| *k != ev.key()));
+                    match ev.key().as_str() {
+                        " " => {
+                            if !did_pan.get_value() {
+                                set_is_ticking.update(|x| *x = !*x);
+                            }
+                        }
+                        _ => {}
+                    }
                 }
             >
 
@@ -291,7 +316,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                 }
             ></div>
             <div
-                class="z-10 absolute flex justify-end items-start"
+                class="z-10 absolute flex justify-end items-start pointer-events-none"
                 style:inset=move || {
                     canvas
                         .with(|gc| {

@@ -1,7 +1,9 @@
 use crate::{
+    parse::rle::{self, PatternMetadata},
     quadtree::{Node, NodeKind, NodeRef},
     universe::Universe,
 };
+use leptos::logging;
 use web_sys::{CanvasRenderingContext2d, ImageData, wasm_bindgen::Clamped};
 
 pub const DEFAULT_CELL_SIZE: f64 = 20.0;
@@ -126,7 +128,7 @@ impl GolCanvas {
             }
         }
     }
-    pub fn _draw_node(&mut self, universe: &Universe, node_ref: NodeRef, top: f64, left: f64) {
+    pub fn _draw_node(&mut self, universe: &Universe, node_ref: NodeRef, left: f64, top: f64) {
         let node = universe.arena.get(node_ref);
         if node.population == 0 {
             return;
@@ -156,13 +158,13 @@ impl GolCanvas {
             NodeKind::Branch(children) => {
                 for (i, child) in children.iter().enumerate() {
                     let (ox, oy) = Node::get_child_offset(i, node.level);
-                    self._draw_node(universe, *child, top + oy as f64, left + ox as f64);
+                    self._draw_node(universe, *child, left + ox as f64, top + oy as f64);
                 }
             }
         };
     }
-    pub fn draw_node(&mut self, universe: &Universe, top: f64, left: f64) {
-        self._draw_node(universe, universe.root, top, left);
+    pub fn draw_node(&mut self, universe: &Universe, left: f64, top: f64) {
+        self._draw_node(universe, universe.root, left, top);
 
         let image_data = ImageData::new_with_u8_clamped_array_and_sh(
             Clamped(&self.buffer),
@@ -170,19 +172,34 @@ impl GolCanvas {
             self.canvas_height(),
         )
         .unwrap();
-        self.ctx.put_image_data(&image_data, 0.0, 0.0).unwrap()
+        self.ctx.put_image_data(&image_data, 0.0, 0.0).unwrap();
     }
-    pub fn draw_rect(&mut self, top: f64, left: f64, width: f64, height: f64, rect: Vec<Vec<u8>>) {
-        self.ctx.set_fill_style_str("white");
-        let w = width / rect.len() as f64;
-        let h = height / rect[0].len() as f64;
+    pub fn draw_rle(&mut self, rle: String) {
+        let (PatternMetadata { width, height, .. }, _) = rle::parse_metadata(&rle, "", "").unwrap();
+        self.fit_rect(0.0, 0.0, width as f64, height as f64);
+        self.zoom_at_center(0.8);
 
-        for (y, row) in rect.iter().enumerate() {
-            for (x, cell) in row.iter().enumerate() {
-                if *cell == 1 {
-                    self.fill_rect(left + w * x as f64, top + h * y as f64, width, height);
-                }
-            }
+        let l2 = (2.0 / self.cell_size).log2() as usize;
+        if l2 > 60 {
+            return;
+        }
+        for (x, y) in rle::iter_alive(&rle).unwrap() {
+            let (nx, ny) = (x >> l2 << l2, y >> l2 << l2);
+            self.fill_rect(
+                nx as f64 - self.origin.0,
+                ny as f64 - self.origin.1,
+                (1 << l2) as f64,
+                (1 << l2) as f64,
+            );
+        }
+
+        let image_data = ImageData::new_with_u8_clamped_array_and_sh(
+            Clamped(&self.buffer),
+            self.canvas_width(),
+            self.canvas_height(),
+        );
+        if let Ok(data) = image_data {
+            self.ctx.put_image_data(&data, 0.0, 0.0).unwrap();
         }
     }
 }

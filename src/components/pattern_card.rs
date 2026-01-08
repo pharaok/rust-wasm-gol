@@ -1,8 +1,8 @@
 use crate::{
     app::fetch_pattern,
-    components::{Loading, Text},
+    components::{Canvas, Loading, Text},
     draw::GolCanvas,
-    parse::rle::{self, PatternMetadata},
+    parse::rle::PatternMetadata,
 };
 use leptos::prelude::*;
 use leptos_router::components::*;
@@ -12,30 +12,31 @@ pub fn PatternCard(#[prop(into)] pattern: Signal<PatternMetadata, LocalStorage>)
     let pattern_rle = LocalResource::new(move || fetch_pattern(pattern.get().path));
 
     let (canvas, set_canvas) = signal_local::<Option<GolCanvas>>(None);
-    // Effect::new(move |_| {
-    //     if let Some(Ok(rle)) = pattern_rle.get() {
-    //         let rect = rle::to_rect(&rle).unwrap();
-    //         logging::log!("{:?}", rect);
-    //         if let Some(gc) = canvas.get() {
-    //             gc.draw_rect(0.0, 0.0, 100.0, 100.0, rect);
-    //             logging::log!("here");
-    //         }
-    //     }
-    // });
+    let (is_ready, set_is_ready) = signal_local(false);
+    Effect::new(move |_| {
+        // track canvas to wait for initialization and resize.
+        canvas.track();
+        if let Some(Ok(rle)) = pattern_rle.get() {
+            set_canvas.update_untracked(|gc| {
+                if let Some(gc) = gc {
+                    gc.draw_rle(rle);
+                    set_is_ready.set(true);
+                }
+            });
+        }
+    });
 
     view! {
         <div class="rounded-md bg-neutral-800 w-64 p-2">
             <A href=format!("/{}", pattern.get().path)>
                 <h2 class="text-lg font-bold w-full text-center truncate">{pattern.get().name}</h2>
-                <div class="relative w-full aspect-square flex justify-center items-center bg-black">
-                    <Show
-                        when=move || true
-                        fallback=move || {
-                            view! { <Loading /> }
-                        }
-                    >
-                        <Loading />
+                <div class="relative w-full aspect-square bg-black">
+                    <Show when=move || !is_ready.get()>
+                        <div class="absolute inset-0 z-10 flex justify-center items-center">
+                            <Loading />
+                        </div>
                     </Show>
+                    <Canvas canvas=canvas set_canvas=set_canvas />
                 </div>
             </A>
             <div class="overflow-hidden">

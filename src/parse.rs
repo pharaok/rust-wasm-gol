@@ -12,7 +12,6 @@ pub mod rle {
 
     use super::get_index;
     use js_sys::RegExp;
-    use leptos::logging;
     use serde::{Deserialize, Serialize};
 
     thread_local! {

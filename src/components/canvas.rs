@@ -2,7 +2,7 @@ use crate::draw::GolCanvas;
 use leptos::html::{self, *};
 use leptos::prelude::*;
 use leptos_use::{use_debounce_fn_with_arg, use_resize_observer};
-use web_sys::{js_sys, wasm_bindgen::JsCast, CanvasRenderingContext2d};
+use web_sys::{CanvasRenderingContext2d, js_sys, wasm_bindgen::JsCast};
 
 pub fn create_2d_context(canvas: web_sys::HtmlCanvasElement, options: js_sys::Object) -> GolCanvas {
     let ctx = canvas
@@ -35,9 +35,9 @@ pub fn Canvas(
 
     let debounced_resize = use_debounce_fn_with_arg(
         move |(width, height): (u32, u32)| {
-            let canvas = canvas_ref.get().unwrap();
-            canvas.set_width(width);
-            canvas.set_height(height);
+            let canvas_el = canvas_ref.get().unwrap();
+            canvas_el.set_width(width);
+            canvas_el.set_height(height);
             set_canvas.update(|c| {
                 c.as_mut().unwrap().resize();
             });
