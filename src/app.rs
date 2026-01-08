@@ -5,7 +5,7 @@ use crate::{
     universe::Universe,
 };
 use gloo_net::http::Request;
-use leptos::prelude::*;
+use leptos::{logging, prelude::*};
 use leptos_router::hooks::*;
 use leptos_router::params::Params;
 use leptos_use::use_raf_fn;
@@ -136,12 +136,12 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         }
         is_dirty.set_value(true);
     });
+
     Effect::new(move |_| {
         universe.track();
         canvas.track();
         is_dirty.set_value(true);
     });
-
     let prev_tick = StoredValue::new_local(0.0);
     use_raf_fn(move |raf_args| {
         let now = raf_args.timestamp;
@@ -168,14 +168,20 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         is_dirty.set_value(false);
     });
 
+    let keys = StoredValue::<Vec<String>, LocalStorage>::new_local(Vec::new());
+
     view! {
         <div class="absolute inset-0 w-screen h-screen overflow-hidden">
             <div
                 on:contextmenu=move |ev| ev.prevent_default()
                 on:mousedown=move |ev| {
+                    if pan.get_value().is_some() {
+                        return;
+                    }
                     let (x, y) = offset_to_grid(ev.offset_x(), ev.offset_y());
-                    match ev.button() {
-                        0 => {
+                    let is_space_held = keys.get_value().contains(&" ".to_owned());
+                    match (ev.button(), is_space_held) {
+                        (0, false) => {
                             if canvas.with(|gc| gc.as_ref().unwrap().cell_size) >= 5.0 {
                                 set_universe
                                     .update(|u| {
@@ -188,10 +194,10 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                             set_selection_end.set(None);
                             set_is_selection_menu_shown.set(false);
                         }
-                        1 => {
+                        (1, _) | (0, true) => {
                             pan.set_value(Some((x, y)));
                         }
-                        2 => {
+                        (2, false) => {
                             set_selection_start.set(Some((x.floor() as i64, y.floor() as i64)));
                             set_selection_end.set(Some((x.floor() as i64, y.floor() as i64)));
                             set_is_selection_menu_shown.set(false);
@@ -219,10 +225,10 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                 }
 
                 on:mouseup=move |ev| {
+                    if (ev.buttons() & 0b101) == 0 {
+                        pan.set_value(None);
+                    }
                     match ev.button() {
-                        1 => {
-                            pan.set_value(None);
-                        }
                         2 => {
                             set_is_selection_menu_shown.set(true);
                         }
@@ -240,12 +246,14 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                 }
 
                 on:keydown=move |ev| {
-                    match ev.key().as_str() {
-                        " " => {
-                            set_is_ticking.update(|b| *b = !*b);
+                    keys.update_value(|ks| {
+                        if !ks.contains(&ev.key()) {
+                            ks.push(ev.key())
                         }
-                        _ => {}
-                    }
+                    });
+                }
+                on:keyup=move |ev| {
+                    keys.update_value(|ks| ks.retain(|k| *k != ev.key()));
                 }
             >
 

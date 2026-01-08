@@ -5,7 +5,7 @@ use gloo_net::http::Request;
 use leptos::html;
 use leptos::logging;
 use leptos::prelude::*;
-use leptos_use::{use_infinite_scroll_with_options, UseInfiniteScrollOptions};
+use leptos_use::{UseInfiniteScrollOptions, use_infinite_scroll_with_options};
 
 #[derive(Clone)]
 enum Sort {
@@ -79,7 +79,7 @@ pub fn PatternLibrary() -> impl IntoView {
         <div node_ref=div_ref class="h-screen overflow-y-scroll p-1 flex flex-col gap-1">
             <div class="w-64 flex gap-1">
                 <input
-                    class="w-0 flex-1 rounded-md bg-neutral-800"
+                    class="w-0 pl-2 flex-1 rounded-md bg-neutral-800"
                     placeholder="Search..."
                     type="text"
                     on:input=move |e| {
