@@ -95,10 +95,7 @@ impl Universe {
     }
     pub fn set_points(&mut self, points: &[(i64, i64)]) {
         let q = 1i64 << (self.get_level() - 2);
-        let mut points = points
-            .iter()
-            .map(|p| (p.0 + q, p.1 + q))
-            .collect::<Vec<_>>();
+        let mut points = points.to_owned();
         self.root = self
             ._set_points(&mut points, self.get_level(), -2 * q, -2 * q)
             .0;

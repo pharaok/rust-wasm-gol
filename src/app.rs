@@ -1,15 +1,16 @@
 use crate::{
-    components::{Canvas, Controls, Menu, MenuTrigger, PatternLibrary, SelectionMenu, Status},
+    components::{
+        Canvas, Controls, Menu, MenuTrigger, PatternLibrary, SelectionMenu, Status, use_toast,
+    },
     draw::GolCanvas,
-    parse::rle::{self, PatternMetadata},
+    parse::rle,
     universe::Universe,
 };
 use gloo_net::http::Request;
-use leptos::{logging, prelude::*};
+use leptos::{ev::mousedown, html, logging, prelude::*};
 use leptos_router::hooks::*;
 use leptos_router::params::Params;
-use leptos_use::use_raf_fn;
-use web_sys::console;
+use leptos_use::{UseClipboardReturn, use_clipboard, use_document, use_event_listener, use_raf_fn};
 
 #[derive(Params, PartialEq)]
 pub struct GolParams {
@@ -22,10 +23,7 @@ pub struct GolContext {
     pub set_universe: WriteSignal<Universe, LocalStorage>,
     pub cursor: ReadSignal<(f64, f64), LocalStorage>,
     pub set_cursor: WriteSignal<(f64, f64), LocalStorage>,
-    pub selection_start: ReadSignal<Option<(i64, i64)>, LocalStorage>,
-    pub set_selection_start: WriteSignal<Option<(i64, i64)>, LocalStorage>,
-    pub selection_end: ReadSignal<Option<(i64, i64)>, LocalStorage>,
-    pub set_selection_end: WriteSignal<Option<(i64, i64)>, LocalStorage>,
+    pub selection_rect: Signal<Option<(i64, i64, i64, i64)>, LocalStorage>,
     pub canvas: ReadSignal<Option<GolCanvas>, LocalStorage>,
     pub set_canvas: WriteSignal<Option<GolCanvas>, LocalStorage>,
     pub is_ticking: ReadSignal<bool, LocalStorage>,
@@ -50,24 +48,33 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
     let (canvas, set_canvas) = signal_local::<Option<GolCanvas>>(None);
     let (cursor, set_cursor) = signal_local((0.0, 0.0));
     let (is_ticking, set_is_ticking) = signal_local(false);
+    let tps = StoredValue::new(20.0);
     let offset_to_grid = move |x: i32, y: i32| {
         canvas.with(|gc| gc.as_ref().unwrap().to_world_coords(x as f64, y as f64))
     };
     let pan = StoredValue::<Option<(f64, f64)>>::new(None);
+
     let (selection_start, set_selection_start) = signal_local::<Option<(i64, i64)>>(None);
     let (selection_end, set_selection_end) = signal_local::<Option<(i64, i64)>>(None);
     let (is_selection_menu_shown, set_is_selection_menu_shown) = signal_local(false);
-    let tps = StoredValue::new(20.0);
+    let selection_rect = Signal::derive_local(move || {
+        if let Some((mut x1, mut y1)) = selection_start.get()
+            && let Some((mut x2, mut y2)) = selection_end.get()
+        {
+            (x1, x2) = if x1 < x2 { (x1, x2) } else { (x2, x1) };
+            (y1, y2) = if y1 < y2 { (y1, y2) } else { (y2, y1) };
+            Some((x1, y1, x2, y2))
+        } else {
+            None
+        }
+    });
 
     provide_context(GolContext {
         universe,
         set_universe,
         cursor,
         set_cursor,
-        selection_start,
-        set_selection_start,
-        selection_end,
-        set_selection_end,
+        selection_rect,
         canvas,
         set_canvas,
         is_ticking,
@@ -99,14 +106,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         // pattern_rle will never actually be Some(Err) because
         // the server will always return 200 OK since this is a SPA
         if let Some(Ok(rle)) = pattern_rle.get()
-            && let Ok((
-                PatternMetadata {
-                    width: w,
-                    height: h,
-                    ..
-                },
-                _,
-            )) = rle::parse_metadata(&rle, "Unnamed Pattern", "")
+            && rle::parse_metadata(&rle, "Unnamed Pattern", "").is_ok()
         {
             set_universe.update(|u| {
                 u.clear();
@@ -118,10 +118,8 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                         u.set_rect_meta(&rect, &on_rle, &off_rle);
                     }
                 } else {
-                    console::time_with_label("loadin");
                     let points = rle::iter_alive(&rle).unwrap().collect::<Vec<_>>();
                     u.set_points(&points);
-                    console::time_end_with_label("loadin");
                 }
             });
             set_canvas.update(|gc| {
@@ -175,10 +173,29 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
     let keys = StoredValue::<Vec<String>, LocalStorage>::new_local(Vec::new());
     let did_pan = StoredValue::new_local(false);
 
+    let UseClipboardReturn { copy, .. } = use_clipboard();
+    let push_toast = use_toast();
+
+    let div_ref = NodeRef::<html::Div>::new();
+    Effect::new(move |_| {
+        if let Some(div) = div_ref.get() {
+            let _ = div.focus();
+        }
+    });
+    let _ = use_event_listener(use_document(), mousedown, move |ev| {
+        let el = event_target::<web_sys::HtmlDivElement>(&ev);
+        let tag = el.tag_name();
+
+        if tag != "INPUT" {
+            ev.prevent_default();
+        }
+    });
+
     view! {
         <div class="absolute inset-0 w-screen h-screen overflow-hidden">
             <div
                 tabindex="0"
+                node_ref=div_ref
                 on:contextmenu=move |ev| ev.prevent_default()
                 on:mousedown=move |ev| {
                     if pan.get_value().is_some() {
@@ -268,6 +285,30 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                                 set_selection_end.set(Some((x2, y2)));
                                 set_is_selection_menu_shown.set(true);
                                 ev.prevent_default();
+                            }
+                        }
+                        "c" => {
+                            if let Some((x1, y1, x2, y2)) = selection_rect.get() {
+                                universe
+                                    .with(|u| {
+                                        let rle = rle::from_iter(
+                                            u.iter_alive_in_rect(x1, y1, x2, y2),
+                                            x1,
+                                            y1,
+                                            x2,
+                                            y2,
+                                        );
+                                        copy(&rle);
+                                        push_toast.run("Copied RLE to clipboard!".to_owned());
+                                    });
+                            }
+                        }
+                        "Delete" => {
+                            if let Some((x1, y1, x2, y2)) = selection_rect.get() {
+                                set_universe
+                                    .update(|u| {
+                                        u.clear_rect(x1, y1, x2, y2);
+                                    });
                             }
                         }
                         _ => {}
