@@ -1,5 +1,5 @@
 use super::create_2d_context;
-use crate::{draw::GolCanvas, parse::rle, universe::Universe};
+use crate::{draw::Canvas, parse::rle, universe::Universe};
 use leptos::html;
 use leptos::prelude::*;
 use leptos_use::use_raf_fn;
@@ -7,7 +7,7 @@ use web_sys::js_sys;
 
 #[derive(Clone)]
 pub struct LoadingContext {
-    pub global_canvas: ReadSignal<Option<GolCanvas>, LocalStorage>,
+    pub global_canvas: ReadSignal<Option<Canvas>, LocalStorage>,
 }
 
 #[component]
@@ -21,7 +21,7 @@ pub fn LoadingCanvasProvider(children: Children) -> impl IntoView {
         u.set_rect(-5, -5, &rect);
         u
     });
-    let (canvas, set_canvas) = signal_local::<Option<GolCanvas>>(None);
+    let (canvas, set_canvas) = signal_local::<Option<Canvas>>(None);
 
     Effect::new(move |_| {
         if let Some(canvas) = canvas_ref.get() {
@@ -39,15 +39,15 @@ pub fn LoadingCanvasProvider(children: Children) -> impl IntoView {
         }
         universe.update_value(|u| u.step());
         prev_tick.set_value(now);
-        if canvas.get().is_some() {
+        if canvas.with(|c| c.is_some()) {
             set_canvas.update(|gc| {
-                let gc = gc.as_mut().unwrap();
-                gc.fit_rect(-6.0, -6.0, 12.0, 12.0);
-                gc.clear();
-                universe.with_value(|u| {
-                    let half = (1i64 << (u.get_level() - 1)) as f64;
-                    gc.draw_node(u, -half - gc.origin.1, -half - gc.origin.0);
-                });
+                // let gc = gc.as_mut().unwrap();
+                // gc.fit_rect(-6.0, -6.0, 12.0, 12.0);
+                // gc.clear();
+                // universe.with_value(|u| {
+                //     let half = (1i64 << (u.get_level() - 1)) as f64;
+                //     gc.draw_node(u, -half - gc.origin.1, -half - gc.origin.0);
+                // });
             });
         }
     });
@@ -66,7 +66,7 @@ pub fn LoadingCanvasProvider(children: Children) -> impl IntoView {
 pub fn Loading() -> impl IntoView {
     let canvas_ref = NodeRef::<html::Canvas>::new();
     let LoadingContext { global_canvas } = use_context::<LoadingContext>().unwrap();
-    let (canvas, set_canvas) = signal_local::<Option<GolCanvas>>(None);
+    let (canvas, set_canvas) = signal_local::<Option<Canvas>>(None);
 
     Effect::new(move || {
         let canvas = canvas_ref.get().unwrap();

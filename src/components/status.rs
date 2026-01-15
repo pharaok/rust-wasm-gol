@@ -50,12 +50,13 @@ pub fn Status() -> impl IntoView {
     let GolContext {
         universe,
         cursor,
-        canvas,
-        set_canvas,
+        canvas_size,
+        viewport,
+        set_viewport,
         ..
     } = use_context::<GolContext>().unwrap();
     let ratio = move || {
-        let cell_size = canvas.with(|gc| gc.as_ref().map(|gc| gc.cell_size).unwrap_or(1.0));
+        let cell_size = viewport.get().cell_size;
         if cell_size < 1.0 {
             format!("1:{}", metric_string(1.0 / cell_size))
         } else {
@@ -88,17 +89,19 @@ pub fn Status() -> impl IntoView {
                     if universe.with(|u| u.get_population()) == 0 {
                         return;
                     }
-                    set_canvas
-                        .update(|gc| {
-                            let gc = gc.as_mut().unwrap();
+                    set_viewport
+                        .update(|vp| {
+                            let (width, height) = canvas_size.get();
                             let (x1, y1, x2, y2) = universe.with(|u| u.get_bounding_rect());
-                            gc.fit_rect(
+                            vp.fit_rect(
                                 y1 as f64,
                                 x1 as f64,
                                 (x2 - x1 + 1) as f64,
                                 (y2 - x1 + 1) as f64,
+                                width as f64,
+                                height as f64,
                             );
-                            gc.zoom_at_center(0.8);
+                            vp.zoom_at_center(0.8, width as f64, height as f64);
                         });
                 })>{ratio}</Item>
                 <Divider />

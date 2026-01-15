@@ -1,7 +1,7 @@
 use crate::{
     app::fetch_pattern,
-    components::{Canvas, Loading, Text},
-    draw::GolCanvas,
+    components::{Loading, Stage, Text},
+    draw::{self, Canvas},
     parse::rle::PatternMetadata,
 };
 use leptos::prelude::*;
@@ -11,15 +11,15 @@ use leptos_router::components::*;
 pub fn PatternCard(#[prop(into)] pattern: Signal<PatternMetadata, LocalStorage>) -> impl IntoView {
     let pattern_rle = LocalResource::new(move || fetch_pattern(pattern.get().path));
 
-    let (canvas, set_canvas) = signal_local::<Option<GolCanvas>>(None);
+    let (canvas, set_canvas) = signal_local::<Option<Canvas>>(None);
     let (is_ready, set_is_ready) = signal_local(false);
     Effect::new(move |_| {
         // track canvas to wait for initialization and resize.
         canvas.track();
         if let Some(Ok(rle)) = pattern_rle.get() {
-            set_canvas.update_untracked(|gc| {
-                if let Some(gc) = gc {
-                    gc.draw_rle(rle);
+            set_canvas.update_untracked(|c| {
+                if let Some(c) = c {
+                    draw::draw_rle(c, rle);
                     set_is_ready.set(true);
                 }
             });
@@ -36,7 +36,7 @@ pub fn PatternCard(#[prop(into)] pattern: Signal<PatternMetadata, LocalStorage>)
                             <Loading />
                         </div>
                     </Show>
-                    <Canvas canvas=canvas set_canvas=set_canvas />
+                // <Stage canvas=canvas set_canvas=set_canvas />
                 </div>
             </A>
             <div class="overflow-hidden">

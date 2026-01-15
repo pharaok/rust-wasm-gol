@@ -1,8 +1,8 @@
 use crate::{
     components::{
-        Canvas, Controls, Menu, MenuTrigger, PatternLibrary, SelectionMenu, Status, use_toast,
+        Controls, Layer, Menu, MenuTrigger, PatternLibrary, SelectionMenu, Stage, Status, use_toast,
     },
-    draw::GolCanvas,
+    draw::{self, Canvas, Viewport},
     parse::rle,
     universe::Universe,
 };
@@ -10,7 +10,7 @@ use gloo_net::http::Request;
 use leptos::{ev::mousedown, html, logging, prelude::*};
 use leptos_router::hooks::*;
 use leptos_router::params::Params;
-use leptos_use::{UseClipboardReturn, use_clipboard, use_document, use_event_listener, use_raf_fn};
+use leptos_use::{UseClipboardReturn, use_clipboard, use_document, use_event_listener};
 
 #[derive(Params, PartialEq)]
 pub struct GolParams {
@@ -21,11 +21,12 @@ pub struct GolParams {
 pub struct GolContext {
     pub universe: ReadSignal<Universe, LocalStorage>,
     pub set_universe: WriteSignal<Universe, LocalStorage>,
+    pub canvas_size: ReadSignal<(u32, u32), LocalStorage>,
+    pub viewport: ReadSignal<Viewport, LocalStorage>,
+    pub set_viewport: WriteSignal<Viewport, LocalStorage>,
     pub cursor: ReadSignal<(f64, f64), LocalStorage>,
     pub set_cursor: WriteSignal<(f64, f64), LocalStorage>,
     pub selection_rect: Signal<Option<(i64, i64, i64, i64)>, LocalStorage>,
-    pub canvas: ReadSignal<Option<GolCanvas>, LocalStorage>,
-    pub set_canvas: WriteSignal<Option<GolCanvas>, LocalStorage>,
     pub is_ticking: ReadSignal<bool, LocalStorage>,
     pub set_is_ticking: WriteSignal<bool, LocalStorage>,
 }
@@ -45,13 +46,12 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
     // draw_node, which causes issues with rendering and panning.
     let (universe, set_universe) =
         signal_local(Universe::with_size_and_arena_capacity(50, 1 << 24));
-    let (canvas, set_canvas) = signal_local::<Option<GolCanvas>>(None);
+    let (canvas_size, set_canvas_size) = signal_local((0, 0));
+    let (viewport, set_viewport) = signal_local(Viewport::new());
     let (cursor, set_cursor) = signal_local((0.0, 0.0));
     let (is_ticking, set_is_ticking) = signal_local(false);
     let tps = StoredValue::new(20.0);
-    let offset_to_grid = move |x: i32, y: i32| {
-        canvas.with(|gc| gc.as_ref().unwrap().to_world_coords(x as f64, y as f64))
-    };
+    let offset_to_world = move |x: i32, y: i32| viewport.get().to_world_coords(x as f64, y as f64);
     let pan = StoredValue::<Option<(f64, f64)>>::new(None);
 
     let (selection_start, set_selection_start) = signal_local::<Option<(i64, i64)>>(None);
@@ -72,11 +72,12 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
     provide_context(GolContext {
         universe,
         set_universe,
+        canvas_size,
+        viewport,
+        set_viewport,
         cursor,
         set_cursor,
         selection_rect,
-        canvas,
-        set_canvas,
         is_ticking,
         set_is_ticking,
     });
@@ -102,7 +103,12 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
     };
 
     let is_dirty = StoredValue::new_local(true);
+    let did_fit = StoredValue::new_local(false);
     Effect::new(move |_| {
+        let (canvas_width, canvas_height) = canvas_size.get();
+        if did_fit.get_value() || canvas_width == 0 || canvas_height == 0 {
+            return;
+        }
         // pattern_rle will never actually be Some(Err) because
         // the server will always return 200 OK since this is a SPA
         if let Some(Ok(rle)) = pattern_rle.get()
@@ -122,53 +128,33 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                     u.set_points(&points);
                 }
             });
-            set_canvas.update(|gc| {
-                let gc = gc.as_mut().unwrap();
-                if universe.with_untracked(|u| u.get_population()) != 0 {
-                    let (x1, y1, x2, y2) = universe.with_untracked(|u| u.get_bounding_rect());
-                    gc.fit_rect(
+
+            if universe.with_untracked(|u| u.get_population()) != 0 {
+                let (x1, y1, x2, y2) = universe.with_untracked(|u| u.get_bounding_rect());
+                set_viewport.update(|vp| {
+                    vp.fit_rect(
                         x1 as f64,
                         y1 as f64,
                         (x2 - x1 + 1) as f64,
                         (y2 - y1 + 1) as f64,
+                        canvas_width as f64,
+                        canvas_height as f64,
                     );
-                }
-                gc.zoom_at_center(0.8);
-            });
+                    vp.zoom_at_center(0.8, canvas_width as f64, canvas_height as f64);
+                });
+            }
         }
+        did_fit.set_value(true);
         is_dirty.set_value(true);
     });
 
     Effect::new(move |_| {
         universe.track();
-        canvas.track();
+        canvas_size.track();
+        viewport.track();
         is_dirty.set_value(true);
     });
     let prev_tick = StoredValue::new_local(0.0);
-    use_raf_fn(move |raf_args| {
-        let now = raf_args.timestamp;
-        if is_ticking.get() && now - prev_tick.get_value() > 1000.0 / tps.get_value() {
-            set_universe.update(|u| {
-                u.step();
-            });
-            prev_tick.set_value(now);
-        }
-        if !is_dirty.get_value() {
-            return;
-        }
-        // NOTE: updates must be untracked, as otherwise the is_dirty flag gets
-        // set back to true immediately.
-        set_canvas.update_untracked(|gc| {
-            let gc = gc.as_mut().unwrap();
-            gc.clear();
-            universe.with(|u| {
-                let root = u.arena.get(u.root);
-                let half = (1i64 << (root.level - 1)) as f64;
-                gc.draw_node(u, -half - gc.origin.0, -half - gc.origin.1);
-            });
-        });
-        is_dirty.set_value(false);
-    });
 
     let keys = StoredValue::<Vec<String>, LocalStorage>::new_local(Vec::new());
     let did_pan = StoredValue::new_local(false);
@@ -201,11 +187,11 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                     if pan.get_value().is_some() {
                         return;
                     }
-                    let (x, y) = offset_to_grid(ev.offset_x(), ev.offset_y());
+                    let (x, y) = offset_to_world(ev.offset_x(), ev.offset_y());
                     let is_space_held = keys.get_value().contains(&" ".to_owned());
                     match (ev.button(), is_space_held) {
                         (0, false) => {
-                            if canvas.with(|gc| gc.as_ref().unwrap().cell_size) >= 5.0 {
+                            if viewport.get().cell_size >= 5.0 {
                                 set_universe
                                     .update(|u| {
                                         let (x, y) = (x.floor() as i64, y.floor() as i64);
@@ -234,13 +220,12 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                 }
 
                 on:mousemove=move |ev| {
-                    let (x, y) = offset_to_grid(ev.offset_x(), ev.offset_y());
+                    let (x, y) = offset_to_world(ev.offset_x(), ev.offset_y());
                     if let Some((px, py)) = pan.get_value() {
-                        set_canvas
-                            .update(|gc| {
-                                let gc = gc.as_mut().unwrap();
-                                gc.origin.0 += px - x;
-                                gc.origin.1 += py - y;
+                        set_viewport
+                            .update(|vp| {
+                                vp.origin.0 += px - x;
+                                vp.origin.1 += py - y;
                             });
                     } else {
                         set_cursor.set((x, y));
@@ -263,11 +248,11 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                 }
 
                 on:wheel=move |ev| {
-                    let (x, y) = offset_to_grid(ev.offset_x(), ev.offset_y());
+                    let (x, y) = offset_to_world(ev.offset_x(), ev.offset_y());
                     let factor = std::f64::consts::E.powf(-ev.delta_y() / 1000.0);
-                    set_canvas
-                        .update(|gc| {
-                            gc.as_mut().unwrap().zoom_at(factor, x, y);
+                    set_viewport
+                        .update(|vp| {
+                            vp.zoom_at(factor, x, y);
                         });
                 }
 
@@ -327,7 +312,29 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                 }
             >
 
-                <Canvas canvas=canvas set_canvas=set_canvas />
+                <Stage canvas_size=canvas_size set_canvas_size=set_canvas_size>
+                    <Layer draw=move |gc, raf_args| {
+                        let now = raf_args.timestamp;
+                        if is_ticking.get()
+                            && now - prev_tick.get_value() > 1000.0 / tps.get_value()
+                        {
+                            set_universe
+                                .update(|u| {
+                                    u.step();
+                                });
+                            prev_tick.set_value(now);
+                        }
+                        if !is_dirty.get_value() {
+                            return;
+                        }
+                        gc.clear();
+                        universe
+                            .with(|u| {
+                                draw::draw_node(gc, &viewport.get(), u);
+                            });
+                        is_dirty.set_value(false);
+                    } />
+                </Stage>
             </div>
             <div
                 class="absolute bg-blue-600/25 border border-px border-blue-600 pointer-events-none"
@@ -335,55 +342,51 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                     if selection_start.get().is_some() { "visible" } else { "hidden" }
                 }
                 style:inset=move || {
-                    canvas
-                        .with(|gc| {
-                            if let Some((sx, sy)) = selection_start.get()
-                                && let Some((ex, ey)) = selection_end.get() && let Some(gc) = gc
-                            {
-                                let (width, height) = (gc.canvas_width(), gc.canvas_height());
-                                let (mut l, mut t) = gc.to_canvas_coords(sx as f64, sy as f64);
-                                let (mut r, mut b) = gc.to_canvas_coords(ex as f64, ey as f64);
-                                (l, r) = if l < r { (l, r) } else { (r, l) };
-                                (t, b) = if t < b { (t, b) } else { (b, t) };
-                                r += gc.cell_size;
-                                b += gc.cell_size;
-                                format!(
-                                    "{}px {}px {}px {}px",
-                                    t.floor(),
-                                    width as f64 - r.floor(),
-                                    height as f64 - b.floor(),
-                                    l.floor(),
-                                )
-                            } else {
-                                "9999px".to_owned()
-                            }
-                        })
+                    let vp = viewport.get();
+                    if let Some((sx, sy)) = selection_start.get()
+                        && let Some((ex, ey)) = selection_end.get()
+                    {
+                        let (width, height) = canvas_size.get();
+                        let (mut l, mut t) = vp.to_canvas_coords(sx as f64, sy as f64);
+                        let (mut r, mut b) = vp.to_canvas_coords(ex as f64, ey as f64);
+                        (l, r) = if l < r { (l, r) } else { (r, l) };
+                        (t, b) = if t < b { (t, b) } else { (b, t) };
+                        r += vp.cell_size;
+                        b += vp.cell_size;
+                        format!(
+                            "{}px {}px {}px {}px",
+                            t.floor(),
+                            width as f64 - r.floor(),
+                            height as f64 - b.floor(),
+                            l.floor(),
+                        )
+                    } else {
+                        "9999px".to_owned()
+                    }
                 }
             ></div>
             <div
                 class="z-10 absolute flex justify-end items-start pointer-events-none"
                 style:inset=move || {
-                    canvas
-                        .with(|gc| {
-                            if let Some((sx, sy)) = selection_start.get()
-                                && let Some((ex, ey)) = selection_end.get() && let Some(gc) = gc
-                            {
-                                let (width, _) = (gc.canvas_width(), gc.canvas_height());
-                                let (l, t) = gc.to_canvas_coords(sx as f64, sy as f64);
-                                let (mut r, mut b) = gc.to_canvas_coords(ex as f64, ey as f64);
-                                r = r.max(l);
-                                b = b.max(t);
-                                r += gc.cell_size;
-                                b += gc.cell_size;
-                                format!(
-                                    "{}px {}px -9999px -9999px",
-                                    b.floor() + 16.0,
-                                    width as f64 - r.floor(),
-                                )
-                            } else {
-                                "9999px".to_owned()
-                            }
-                        })
+                    let vp = viewport.get();
+                    if let Some((sx, sy)) = selection_start.get()
+                        && let Some((ex, ey)) = selection_end.get()
+                    {
+                        let (width, _) = canvas_size.get();
+                        let (l, t) = vp.to_canvas_coords(sx as f64, sy as f64);
+                        let (mut r, mut b) = vp.to_canvas_coords(ex as f64, ey as f64);
+                        r = r.max(l);
+                        b = b.max(t);
+                        r += vp.cell_size;
+                        b += vp.cell_size;
+                        format!(
+                            "{}px {}px -9999px -9999px",
+                            b.floor() + 16.0,
+                            width as f64 - r.floor(),
+                        )
+                    } else {
+                        "9999px".to_owned()
+                    }
                 }
             >
                 <Show when=is_selection_menu_shown fallback=|| view! {}>
