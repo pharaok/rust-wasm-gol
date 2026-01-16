@@ -119,7 +119,8 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                     }
                 } else {
                     let points = rle::iter_alive(&rle).unwrap().collect::<Vec<_>>();
-                    u.set_points(&points, &InsertMode::Copy);
+                    let half = 1i64 << (u.get_level() - 1);
+                    u.set_points(&points, -half, -half, half - 1, half - 1, &InsertMode::Copy);
                 }
             });
 
@@ -213,16 +214,17 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                         (0, false) => {
                             if is_pasting.get() {
                                 if let Ok(points) = rle::iter_alive(&paste_rle.get_value()) {
-                                    let (cx, cy) = cursor.get();
+                                    let (cx, cy) = cursor
+                                        .with(|(x, y)| (x.floor() as i64, y.floor() as i64));
+                                    let (width, height) = paste_size.get();
                                     set_universe
                                         .update(|u| {
                                             u.set_points(
-                                                &points
-                                                    .map(|(x, y)| (
-                                                        x + cx.floor() as i64,
-                                                        y + cy.floor() as i64,
-                                                    ))
-                                                    .collect::<Vec<_>>(),
+                                                &points.map(|(x, y)| (x + cx, y + cy)).collect::<Vec<_>>(),
+                                                cx,
+                                                cy,
+                                                cx + width - 1,
+                                                cy + height - 1,
                                                 &InsertMode::Or,
                                             );
                                         });
@@ -341,8 +343,13 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                                 if let Ok(points) = rle::iter_alive(&rle) {
                                     set_paste_universe
                                         .update(|u| {
+                                            let half = 1i64 << (u.get_level() - 1);
                                             u.set_points(
                                                 &points.collect::<Vec<_>>(),
+                                                -half,
+                                                -half,
+                                                half - 1,
+                                                half - 1,
                                                 &InsertMode::Copy,
                                             );
                                         });
@@ -352,7 +359,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                                     "",
                                     "",
                                 ) {
-                                    set_paste_size.set((width, height));
+                                    set_paste_size.set((width as i64, height as i64));
                                 }
                             }
                         }

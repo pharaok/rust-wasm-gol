@@ -37,6 +37,7 @@ enum Bound {
     Right,
 }
 
+#[derive(PartialEq)]
 pub enum InsertMode {
     Copy,
     Or,
@@ -86,6 +87,10 @@ impl Universe {
     pub fn _set_points(
         &mut self,
         points: &mut [(i64, i64)],
+        x1: i64,
+        y1: i64,
+        x2: i64,
+        y2: i64,
         mode: &InsertMode,
         curr: NodeRef,
         left: i64,
@@ -93,10 +98,17 @@ impl Universe {
     ) -> (NodeRef, u64) {
         let node = self.arena.get(curr);
         let level = node.level;
+        let size = 1i64 << level;
+        let (right, bottom) = (left + size, top + size);
+        if right < x1 || bottom < y1 || left > x2 || top > y2 {
+            return (curr, node.population);
+        }
         if points.is_empty() {
-            return match mode {
-                InsertMode::Copy => (self.empty_ref[level as usize], 0),
-                InsertMode::Or => (curr, node.population),
+            match mode {
+                InsertMode::Copy => {
+                    unreachable!()
+                }
+                InsertMode::Or => return (curr, node.population),
             };
         }
         match node.data {
@@ -104,12 +116,7 @@ impl Universe {
                 let mut pop = node.population;
                 match mode {
                     InsertMode::Copy => {
-                        data = Leaf::default();
-                        pop = 0;
-                        for (x, y) in points {
-                            pop += 1;
-                            data[(*y - top) as usize][(*x - left) as usize] = 1;
-                        }
+                        unreachable!()
                     }
                     InsertMode::Or => {
                         for (x, y) in points {
@@ -128,7 +135,17 @@ impl Universe {
                 let mut pop = 0;
                 for (i, child) in children.iter_mut().enumerate() {
                     let (ox, oy) = Node::get_child_offset(i, level);
-                    let (c, c_pop) = self._set_points(parts[i], mode, *child, left + ox, top + oy);
+                    let (c, c_pop) = self._set_points(
+                        parts[i],
+                        x1,
+                        y1,
+                        x2,
+                        y2,
+                        mode,
+                        *child,
+                        left + ox,
+                        top + oy,
+                    );
                     *child = c;
                     pop += c_pop;
                 }
@@ -140,11 +157,23 @@ impl Universe {
             }
         }
     }
-    pub fn set_points(&mut self, points: &[(i64, i64)], mode: &InsertMode) {
+    pub fn set_points(
+        &mut self,
+        points: &[(i64, i64)],
+        x1: i64,
+        y1: i64,
+        x2: i64,
+        y2: i64,
+        mut mode: &InsertMode,
+    ) {
         let q = 1i64 << (self.get_level() - 2);
         let mut points = points.to_owned();
+        if *mode == InsertMode::Copy {
+            self.clear_rect(x1, y1, x2, y2);
+            mode = &InsertMode::Or;
+        }
         self.root = self
-            ._set_points(&mut points, mode, self.root, -2 * q, -2 * q)
+            ._set_points(&mut points, x1, y1, x2, y2, mode, self.root, -2 * q, -2 * q)
             .0;
     }
 

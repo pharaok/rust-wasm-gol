@@ -22,7 +22,16 @@ impl Universe {
             .unwrap()
             .map(|p| (p.0 - 5, p.1 - 5))
             .collect::<Vec<_>>();
-        self.set_points(&off_points, &InsertMode::Copy);
+
+        let half = 1i64 << (self.get_level() - 1);
+        self.set_points(
+            &off_points,
+            -half,
+            -half,
+            half - 1,
+            half - 1,
+            &InsertMode::Copy,
+        );
         let meta_off_ref = self.get_node(0, 0, META_CELL_LEVEL);
         self.clear();
 
@@ -30,7 +39,14 @@ impl Universe {
             .unwrap()
             .map(|p| (p.0 - 5, p.1 - 5))
             .collect::<Vec<_>>();
-        self.set_points(&on_points, &InsertMode::Copy);
+        self.set_points(
+            &on_points,
+            -half,
+            -half,
+            half - 1,
+            half - 1,
+            &InsertMode::Copy,
+        );
         let meta_on_ref = self.get_node(0, 0, META_CELL_LEVEL);
         self.clear();
 
@@ -61,6 +77,10 @@ impl Universe {
                         .iter()
                         .map(|(x, y)| (x + dx * META_CELL_SIZE - 5, y + dy * META_CELL_SIZE - 5))
                         .collect::<Vec<_>>(),
+                    dx * META_CELL_SIZE - 5,
+                    dy * META_CELL_SIZE - 5,
+                    (dx + 1) * META_CELL_SIZE + 5,
+                    (dy + 1) * META_CELL_SIZE + 5,
                     &InsertMode::Or,
                 );
             }
