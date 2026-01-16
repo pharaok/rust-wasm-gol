@@ -1,5 +1,5 @@
 use crate::{
-    components::{Controls, Layer, SelectionMenu, Stage, Status, use_toast},
+    components::{Controls, Layer, SelectionMenu, SelectionOverlay, Stage, Status, use_toast},
     draw::{self, Viewport},
     parse::rle::{self, PatternMetadata},
     universe::{InsertMode, Universe},
@@ -148,13 +148,6 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         canvas_size.track();
         viewport.track();
         is_canvas_dirty.set_value(true);
-    });
-    let is_selection_dirty = StoredValue::new_local(true);
-    Effect::new(move |_| {
-        selection_rect.track();
-        canvas_size.track();
-        viewport.track();
-        is_selection_dirty.set_value(true);
     });
 
     let prev_tick = StoredValue::new_local(0.0);
@@ -413,25 +406,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                             });
                         is_canvas_dirty.set_value(false);
                     } />
-                    <Layer draw=move |c, _raf_args| {
-                        let vp = viewport.get();
-                        if !is_selection_dirty.get_value() {
-                            return;
-                        }
-                        c.clear();
-                        if let Some((x1, y1, x2, y2)) = selection_rect.get() {
-                            c.fill_rect_with_viewport(
-                                &vp,
-                                x1 as f64,
-                                y1 as f64,
-                                (x2 - x1 + 1) as f64,
-                                (y2 - y1 + 1) as f64,
-                                0x0000FF7F,
-                            )
-                        }
-                        c.draw();
-                        is_selection_dirty.set_value(false);
-                    } />
+                    <SelectionOverlay />
                     <Layer draw=move |c, _raf_args| {
                         if !is_paste_canvas_dirty.get_value() {
                             return;
