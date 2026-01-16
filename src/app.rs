@@ -1,13 +1,11 @@
 use crate::{
-    components::{
-        Controls, Layer, Menu, MenuTrigger, PatternLibrary, SelectionMenu, Stage, Status, use_toast,
-    },
+    components::{Controls, Layer, SelectionMenu, Stage, Status, use_toast},
     draw::{self, Viewport},
     parse::rle,
     universe::Universe,
 };
 use gloo_net::http::Request;
-use leptos::{ev::mousedown, html, prelude::*};
+use leptos::{ev::mousedown, html, logging, prelude::*};
 use leptos_router::hooks::*;
 use leptos_router::params::Params;
 use leptos_use::{UseClipboardReturn, use_clipboard, use_document, use_event_listener};
@@ -45,7 +43,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
     // WARN: a large Universe results in catastrophic cancellation in
     // draw_node, which causes issues with rendering and panning.
     let (universe, set_universe) =
-        signal_local(Universe::with_size_and_arena_capacity(60, 1 << 24));
+        signal_local(Universe::with_size_and_arena_capacity(60, 1 << 16));
     let (canvas_size, set_canvas_size) = signal_local((0, 0));
     let (viewport, set_viewport) = signal_local(Viewport::new());
     let (cursor, set_cursor) = signal_local((0.0, 0.0));
@@ -58,15 +56,8 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
     let (selection_end, set_selection_end) = signal_local::<Option<(i64, i64)>>(None);
     let (is_selection_menu_shown, set_is_selection_menu_shown) = signal_local(false);
     let selection_rect = Signal::derive_local(move || {
-        if let Some((mut x1, mut y1)) = selection_start.get()
-            && let Some((mut x2, mut y2)) = selection_end.get()
-        {
-            (x1, x2) = if x1 < x2 { (x1, x2) } else { (x2, x1) };
-            (y1, y2) = if y1 < y2 { (y1, y2) } else { (y2, y1) };
-            Some((x1, y1, x2, y2))
-        } else {
-            None
-        }
+        let ((sx, sy), (ex, ey)) = (selection_start.get()?, selection_end.get()?);
+        Some((sx.min(ex), sy.min(ey), sx.max(ex), sy.max(ey)))
     });
 
     provide_context(GolContext {
@@ -104,6 +95,10 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
 
     let did_fit = StoredValue::new_local(false);
     Effect::new(move |_| {
+        pattern_rle.track();
+        did_fit.set_value(false);
+    });
+    Effect::new(move |_| {
         let (canvas_width, canvas_height) = canvas_size.get();
         if did_fit.get_value() || canvas_width == 0 || canvas_height == 0 {
             return;
@@ -119,8 +114,8 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                     if let Some(Ok(on_rle)) = meta_on_rle.unwrap().get()
                         && let Some(Ok(off_rle)) = meta_off_rle.unwrap().get()
                     {
-                        let rect = rle::to_rect(&rle).unwrap();
-                        u.set_rect_meta(&rect, &on_rle, &off_rle);
+                        let rect = rle::to_grid(&rle).unwrap();
+                        u.set_grid_meta(&rect, &on_rle, &off_rle);
                     }
                 } else {
                     let points = rle::iter_alive(&rle).unwrap().collect::<Vec<_>>();
@@ -161,6 +156,10 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         is_selection_dirty.set_value(true);
     });
     let prev_tick = StoredValue::new_local(0.0);
+    Effect::new(move |_| {
+        is_ticking.track();
+        prev_tick.set_value(0.0);
+    });
 
     let keys = StoredValue::<Vec<String>, LocalStorage>::new_local(Vec::new());
     let did_pan = StoredValue::new_local(false);
@@ -169,10 +168,8 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
     let push_toast = use_toast();
 
     let div_ref = NodeRef::<html::Div>::new();
-    Effect::new(move |_| {
-        if let Some(div) = div_ref.get() {
-            let _ = div.focus();
-        }
+    div_ref.on_load(|div_el| {
+        let _ = div_el.focus();
     });
     let _ = use_event_listener(use_document(), mousedown, move |ev| {
         let el = event_target::<web_sys::HtmlDivElement>(&ev);
@@ -386,10 +383,6 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                     <Status />
                 </div>
             </div>
-            <Menu>
-                <MenuTrigger>PATTERNS</MenuTrigger>
-                <PatternLibrary />
-            </Menu>
         </div>
     }
 }

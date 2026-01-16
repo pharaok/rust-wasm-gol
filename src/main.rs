@@ -1,6 +1,7 @@
 use gol::{
     app::App,
     components::{LoadingCanvasProvider, ToastRegion},
+    layout::Layout,
 };
 use leptos::prelude::*;
 use leptos_router::components::*;
@@ -15,10 +16,15 @@ fn main() {
                 <ToastRegion>
                     <Router>
                         <Routes fallback=|| "Not found.">
-                            <Route path=path!("/") view=|| view! { <App /> } />
-                            <Route path=path!("/:name") view=|| view! { <App /> } />
-                            <Route path=path!("/meta") view=|| view! { <Redirect path="/" /> } />
-                            <Route path=path!("/meta/:name") view=|| view! { <App meta=true /> } />
+                            <ParentRoute path=path!("/") view=Layout>
+                                <Route path=path!("") view=|| view! { <App /> } />
+                                <Route path=path!(":name") view=|| view! { <App /> } />
+                                <Route path=path!("meta") view=|| view! { <Redirect path="/" /> } />
+                                <Route
+                                    path=path!("meta/:name")
+                                    view=|| view! { <App meta=true /> }
+                                />
+                            </ParentRoute>
                         </Routes>
                     </Router>
                 </ToastRegion>

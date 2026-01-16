@@ -8,8 +8,8 @@ use web_sys::{CanvasRenderingContext2d, ImageData, wasm_bindgen::Clamped};
 pub struct Canvas {
     pub ctx: CanvasRenderingContext2d,
     pub buffer: Vec<u8>,
-    width: u32,
-    height: u32,
+    pub width: u32,
+    pub height: u32,
 }
 impl Canvas {
     pub fn new(ctx: CanvasRenderingContext2d) -> Self {
@@ -172,6 +172,7 @@ impl Viewport {
     }
 }
 
+const ALIVE_COLOR: u32 = 0xFFFFFFFF;
 fn _draw_node(
     canvas: &mut Canvas,
     viewport: &Viewport,
@@ -197,7 +198,7 @@ fn _draw_node(
     }
 
     if 2.0 * half * viewport.cell_size < 2.0 {
-        canvas.fill_rect_with_viewport(viewport, left, top, 2.0 * half, 2.0 * half, 0xFFFFFFFF);
+        canvas.fill_rect_with_viewport(viewport, left, top, 2.0 * half, 2.0 * half, ALIVE_COLOR);
         return;
     }
 
@@ -212,7 +213,7 @@ fn _draw_node(
                             (y + i as i64) as f64,
                             1.0,
                             1.0,
-                            0xFFFFFFFF,
+                            ALIVE_COLOR,
                         );
                     }
                 }
@@ -231,8 +232,8 @@ pub fn draw_node(canvas: &mut Canvas, viewport: &Viewport, universe: &Universe) 
     _draw_node(canvas, viewport, universe, universe.root, -half, -half);
     canvas.draw();
 }
-pub fn draw_rle(canvas: &mut Canvas, rle: String) {
-    let (PatternMetadata { width, height, .. }, _) = rle::parse_metadata(&rle, "", "").unwrap();
+pub fn draw_rle(canvas: &mut Canvas, rle: String) -> Result<(), ()> {
+    let (PatternMetadata { width, height, .. }, _) = rle::parse_metadata(&rle, "", "")?;
     let mut vp = Viewport::new();
     vp.fit_rect(
         0.0,
@@ -246,8 +247,9 @@ pub fn draw_rle(canvas: &mut Canvas, rle: String) {
 
     let l2 = (2.0 / vp.cell_size).log2() as usize;
     if l2 > 60 {
-        return;
+        return Err(());
     }
+
     for (x, y) in rle::iter_alive(&rle).unwrap() {
         let (nx, ny) = (x >> l2 << l2, y >> l2 << l2);
         canvas.fill_rect_with_viewport(
@@ -256,8 +258,20 @@ pub fn draw_rle(canvas: &mut Canvas, rle: String) {
             ny as f64,
             (1 << l2) as f64,
             (1 << l2) as f64,
-            0xFFFFFFFF,
+            ALIVE_COLOR,
         );
+    }
+
+    canvas.draw();
+    Ok(())
+}
+pub fn draw_grid(canvas: &mut Canvas, viewport: &Viewport, grid: &[Vec<u8>]) {
+    for (y, row) in grid.iter().enumerate() {
+        for (x, cell) in row.iter().enumerate() {
+            if *cell != 0 {
+                canvas.fill_rect_with_viewport(viewport, x as f64, y as f64, 1.0, 1.0, ALIVE_COLOR);
+            }
+        }
     }
 
     canvas.draw();

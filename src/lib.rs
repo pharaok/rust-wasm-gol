@@ -4,6 +4,7 @@ pub mod app;
 pub mod arena;
 pub mod components;
 pub mod draw;
+pub mod layout;
 pub mod meta;
 pub mod parse;
 pub mod quadtree;

@@ -7,6 +7,29 @@ use crate::{
 };
 use rustc_hash::FxHashMap;
 
+pub fn step_grid(grid: &[Vec<u8>], res: &mut [Vec<u8>]) {
+    for i in 1..(grid.len() - 1) {
+        for j in 1..(grid[0].len() - 1) {
+            let neighbors = grid[i - 1][j - 1]
+                + grid[i - 1][j]
+                + grid[i - 1][j + 1]
+                + grid[i][j - 1]
+                + grid[i][j + 1]
+                + grid[i + 1][j - 1]
+                + grid[i + 1][j]
+                + grid[i + 1][j + 1];
+
+            res[i][j] = if neighbors == 2 {
+                grid[i][j]
+            } else if neighbors == 3 {
+                1
+            } else {
+                0
+            };
+        }
+    }
+}
+
 type Key = (NodeKind, i32); // (node, generations)
 enum Bound {
     Top,
@@ -260,7 +283,7 @@ impl Universe {
         let (new_node, population) = if level == LEAF_LEVEL + 1 {
             const SIZE: usize = 1 << (LEAF_LEVEL + 1);
             // pad by 1 cell
-            let mut data = [[0; SIZE + 2]; SIZE + 2];
+            let mut data = vec![vec![0; SIZE + 2]; SIZE + 2];
             for ci in 0..2 {
                 for cj in 0..2 {
                     let child_data = self
@@ -277,30 +300,9 @@ impl Universe {
             }
 
             // advance min(step, 2^(LEAF_LEVEL - 1)) steps
-            let mut next_data = data;
+            let mut next_data = data.clone();
             for _ in 0..(1 << step.min((LEAF_LEVEL - 1) as i32)) {
-                for i in 1..(1 + SIZE) {
-                    for j in 1..(1 + SIZE) {
-                        // TODO: bitboard?
-                        let neighbors = data[i - 1][j - 1]
-                            + data[i - 1][j]
-                            + data[i - 1][j + 1]
-                            + data[i][j - 1]
-                            + data[i][j + 1]
-                            + data[i + 1][j - 1]
-                            + data[i + 1][j]
-                            + data[i + 1][j + 1];
-
-                        next_data[i][j] = if neighbors == 2 {
-                            data[i][j]
-                        } else if neighbors == 3 {
-                            1
-                        } else {
-                            0
-                        };
-                    }
-                }
-
+                step_grid(&data, &mut next_data);
                 std::mem::swap(&mut data, &mut next_data);
             }
 

@@ -10,7 +10,7 @@ bo2054bo$obo2052bobo$bo2054bo2$4b2o2046b2o$4bo2048bo2047$4bo2048bo$4b
 "#;
 
 impl Universe {
-    pub fn set_rect_meta(&mut self, grid: &Vec<Vec<u8>>, meta_on_rle: &str, meta_off_rle: &str) {
+    pub fn set_grid_meta(&mut self, grid: &Vec<Vec<u8>>, meta_on_rle: &str, meta_off_rle: &str) {
         let (height, width) = (grid.len() as i64, grid[0].len() as i64);
         let h = 1 << (width + 2).max(height + 2).ilog2();
         let (extra_width, extra_height) = (2 * h - width, 2 * h - height);

@@ -30,12 +30,12 @@ pub fn PatternCard(#[prop(into)] pattern: Signal<PatternMetadata, LocalStorage>)
                         </div>
                     </Show>
                     <Stage canvas_size=canvas_size set_canvas_size=set_canvas_size>
-                        <Layer draw=move |c, raf_args| {
+                        <Layer draw=move |c, _raf_args| {
                             if !is_dirty.get_value() {
                                 return;
                             }
                             if let Some(Ok(rle)) = pattern_rle.get() {
-                                draw::draw_rle(c, rle);
+                                let _ = draw::draw_rle(c, rle);
                                 set_is_ready.set(true);
                                 c.draw();
                                 is_dirty.set_value(false);

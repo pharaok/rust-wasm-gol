@@ -181,7 +181,7 @@ pub mod rle {
         RLEIterator::new(rle)
     }
 
-    pub fn to_rect(rle: &str) -> Result<Vec<Vec<u8>>, ()> {
+    pub fn to_grid(rle: &str) -> Result<Vec<Vec<u8>>, ()> {
         let (PatternMetadata { width, height, .. }, _) =
             parse_metadata(rle, "Unnamed Pattern", "")?;
         let mut rect = vec![vec![0; width]; height];
