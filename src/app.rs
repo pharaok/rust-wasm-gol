@@ -2,12 +2,12 @@ use crate::{
     components::{
         Controls, Layer, Menu, MenuTrigger, PatternLibrary, SelectionMenu, Stage, Status, use_toast,
     },
-    draw::{self, Canvas, Viewport},
+    draw::{self, Viewport},
     parse::rle,
     universe::Universe,
 };
 use gloo_net::http::Request;
-use leptos::{ev::mousedown, html, logging, prelude::*};
+use leptos::{ev::mousedown, html, prelude::*};
 use leptos_router::hooks::*;
 use leptos_router::params::Params;
 use leptos_use::{UseClipboardReturn, use_clipboard, use_document, use_event_listener};
@@ -45,13 +45,13 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
     // WARN: a large Universe results in catastrophic cancellation in
     // draw_node, which causes issues with rendering and panning.
     let (universe, set_universe) =
-        signal_local(Universe::with_size_and_arena_capacity(50, 1 << 24));
+        signal_local(Universe::with_size_and_arena_capacity(60, 1 << 24));
     let (canvas_size, set_canvas_size) = signal_local((0, 0));
     let (viewport, set_viewport) = signal_local(Viewport::new());
     let (cursor, set_cursor) = signal_local((0.0, 0.0));
     let (is_ticking, set_is_ticking) = signal_local(false);
     let tps = StoredValue::new(20.0);
-    let offset_to_world = move |x: i32, y: i32| viewport.get().to_world_coords(x as f64, y as f64);
+    let offset_to_world = move |x: i32, y: i32| viewport.with(|vp| vp.to_world_coords(x, y));
     let pan = StoredValue::<Option<(f64, f64)>>::new(None);
 
     let (selection_start, set_selection_start) = signal_local::<Option<(i64, i64)>>(None);
@@ -102,7 +102,6 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         None
     };
 
-    let is_dirty = StoredValue::new_local(true);
     let did_fit = StoredValue::new_local(false);
     Effect::new(move |_| {
         let (canvas_width, canvas_height) = canvas_size.get();
@@ -145,14 +144,21 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
             }
         }
         did_fit.set_value(true);
-        is_dirty.set_value(true);
     });
 
+    let is_canvas_dirty = StoredValue::new_local(true);
     Effect::new(move |_| {
         universe.track();
         canvas_size.track();
         viewport.track();
-        is_dirty.set_value(true);
+        is_canvas_dirty.set_value(true);
+    });
+    let is_selection_dirty = StoredValue::new_local(true);
+    Effect::new(move |_| {
+        selection_rect.track();
+        canvas_size.track();
+        viewport.track();
+        is_selection_dirty.set_value(true);
     });
     let prev_tick = StoredValue::new_local(0.0);
 
@@ -313,7 +319,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
             >
 
                 <Stage canvas_size=canvas_size set_canvas_size=set_canvas_size>
-                    <Layer draw=move |gc, raf_args| {
+                    <Layer draw=move |c, raf_args| {
                         let now = raf_args.timestamp;
                         if is_ticking.get()
                             && now - prev_tick.get_value() > 1000.0 / tps.get_value()
@@ -324,66 +330,45 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                                 });
                             prev_tick.set_value(now);
                         }
-                        if !is_dirty.get_value() {
+                        if !is_canvas_dirty.get_value() {
                             return;
                         }
-                        gc.clear();
+                        c.clear();
                         universe
                             .with(|u| {
-                                draw::draw_node(gc, &viewport.get(), u);
+                                draw::draw_node(c, &viewport.get(), u);
                             });
-                        is_dirty.set_value(false);
+                        is_canvas_dirty.set_value(false);
+                    } />
+                    <Layer draw=move |c, raf_args| {
+                        let vp = viewport.get();
+                        if !is_selection_dirty.get_value() {
+                            return;
+                        }
+                        c.clear();
+                        if let Some((x1, y1, x2, y2)) = selection_rect.get() {
+                            c.fill_rect_with_viewport(
+                                &vp,
+                                x1 as f64,
+                                y1 as f64,
+                                (x2 - x1 + 1) as f64,
+                                (y2 - y1 + 1) as f64,
+                                0x0000FF7F,
+                            )
+                        }
+                        c.draw();
+                        is_selection_dirty.set_value(false);
                     } />
                 </Stage>
             </div>
             <div
-                class="absolute bg-blue-600/25 border border-px border-blue-600 pointer-events-none"
-                style:visibility=move || {
-                    if selection_start.get().is_some() { "visible" } else { "hidden" }
-                }
-                style:inset=move || {
-                    let vp = viewport.get();
-                    if let Some((sx, sy)) = selection_start.get()
-                        && let Some((ex, ey)) = selection_end.get()
-                    {
-                        let (width, height) = canvas_size.get();
-                        let (mut l, mut t) = vp.to_canvas_coords(sx as f64, sy as f64);
-                        let (mut r, mut b) = vp.to_canvas_coords(ex as f64, ey as f64);
-                        (l, r) = if l < r { (l, r) } else { (r, l) };
-                        (t, b) = if t < b { (t, b) } else { (b, t) };
-                        r += vp.cell_size;
-                        b += vp.cell_size;
-                        format!(
-                            "{}px {}px {}px {}px",
-                            t.floor(),
-                            width as f64 - r.floor(),
-                            height as f64 - b.floor(),
-                            l.floor(),
-                        )
-                    } else {
-                        "9999px".to_owned()
-                    }
-                }
-            ></div>
-            <div
                 class="z-10 absolute flex justify-end items-start pointer-events-none"
                 style:inset=move || {
                     let vp = viewport.get();
-                    if let Some((sx, sy)) = selection_start.get()
-                        && let Some((ex, ey)) = selection_end.get()
-                    {
-                        let (width, _) = canvas_size.get();
-                        let (l, t) = vp.to_canvas_coords(sx as f64, sy as f64);
-                        let (mut r, mut b) = vp.to_canvas_coords(ex as f64, ey as f64);
-                        r = r.max(l);
-                        b = b.max(t);
-                        r += vp.cell_size;
-                        b += vp.cell_size;
-                        format!(
-                            "{}px {}px -9999px -9999px",
-                            b.floor() + 16.0,
-                            width as f64 - r.floor(),
-                        )
+                    let (width, _) = canvas_size.get();
+                    if let Some((_, _, x2, y2)) = selection_rect.get() {
+                        let (r, b) = vp.to_canvas_coords((x2 + 1) as f64, (y2 + 1) as f64);
+                        format!("{}px {}px -9999px -9999px", b + 16, (width as i32) - r)
                     } else {
                         "9999px".to_owned()
                     }

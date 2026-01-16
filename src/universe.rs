@@ -5,7 +5,6 @@ use crate::{
     parse::rle,
     quadtree::{Branch, LEAF_LEVEL, LEAF_SIZE, Leaf, Node, NodeKind, NodeRef},
 };
-use leptos::logging;
 use rustc_hash::FxHashMap;
 
 type Key = (NodeKind, i32); // (node, generations)
@@ -635,7 +634,6 @@ impl Universe {
                 }
             }
             NodeKind::Branch(children) => {
-                let h = 1i64 << (node.level - 1);
                 let (a, b) = match bound {
                     Bound::Top => ([0, 1], [2, 3]),
                     Bound::Left => ([0, 2], [1, 3]),
