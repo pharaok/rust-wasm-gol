@@ -106,12 +106,17 @@ pub struct Viewport {
     pub origin: (f64, f64), // top left
     pub cell_size: f64,
 }
-impl Viewport {
-    pub fn new() -> Self {
+impl Default for Viewport {
+    fn default() -> Self {
         Self {
             origin: (0.0, 0.0),
             cell_size: 20.0,
         }
+    }
+}
+impl Viewport {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn to_world_coords(&self, offset_x: i32, offset_y: i32) -> (f64, f64) {
@@ -180,6 +185,7 @@ fn _draw_node(
     node_ref: NodeRef,
     x: i64,
     y: i64,
+    color: u32,
 ) {
     let node = universe.arena.get(node_ref);
     if node.population == 0 {
@@ -198,7 +204,7 @@ fn _draw_node(
     }
 
     if 2.0 * half * viewport.cell_size < 2.0 {
-        canvas.fill_rect_with_viewport(viewport, left, top, 2.0 * half, 2.0 * half, ALIVE_COLOR);
+        canvas.fill_rect_with_viewport(viewport, left, top, 2.0 * half, 2.0 * half, color);
         return;
     }
 
@@ -213,7 +219,7 @@ fn _draw_node(
                             (y + i as i64) as f64,
                             1.0,
                             1.0,
-                            ALIVE_COLOR,
+                            color,
                         );
                     }
                 }
@@ -222,14 +228,22 @@ fn _draw_node(
         NodeKind::Branch(children) => {
             for (i, child) in children.iter().enumerate() {
                 let (ox, oy) = Node::get_child_offset(i, node.level);
-                _draw_node(canvas, viewport, universe, *child, x + ox, y + oy);
+                _draw_node(canvas, viewport, universe, *child, x + ox, y + oy, color);
             }
         }
     };
 }
-pub fn draw_node(canvas: &mut Canvas, viewport: &Viewport, universe: &Universe) {
+pub fn draw_node(canvas: &mut Canvas, viewport: &Viewport, universe: &Universe, color: u32) {
     let half = 1i64 << (universe.get_level() - 1);
-    _draw_node(canvas, viewport, universe, universe.root, -half, -half);
+    _draw_node(
+        canvas,
+        viewport,
+        universe,
+        universe.root,
+        -half,
+        -half,
+        color,
+    );
     canvas.draw();
 }
 pub fn draw_rle(canvas: &mut Canvas, rle: String) -> Result<(), ()> {

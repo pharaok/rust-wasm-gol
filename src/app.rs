@@ -1,11 +1,11 @@
 use crate::{
     components::{Controls, Layer, SelectionMenu, Stage, Status, use_toast},
     draw::{self, Viewport},
-    parse::rle,
-    universe::Universe,
+    parse::rle::{self, PatternMetadata},
+    universe::{InsertMode, Universe},
 };
 use gloo_net::http::Request;
-use leptos::{ev::mousedown, html, logging, prelude::*};
+use leptos::{ev::mousedown, html, prelude::*};
 use leptos_router::hooks::*;
 use leptos_router::params::Params;
 use leptos_use::{UseClipboardReturn, use_clipboard, use_document, use_event_listener};
@@ -106,7 +106,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         // pattern_rle will never actually be Some(Err) because
         // the server will always return 200 OK since this is a SPA
         if let Some(Ok(rle)) = pattern_rle.get()
-            && rle::parse_metadata(&rle, "Unnamed Pattern", "").is_ok()
+            && rle::parse_metadata(&rle, "", "").is_ok()
         {
             set_universe.update(|u| {
                 u.clear();
@@ -119,7 +119,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                     }
                 } else {
                     let points = rle::iter_alive(&rle).unwrap().collect::<Vec<_>>();
-                    u.set_points(&points);
+                    u.set_points(&points, &InsertMode::Copy);
                 }
             });
 
@@ -155,6 +155,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         viewport.track();
         is_selection_dirty.set_value(true);
     });
+
     let prev_tick = StoredValue::new_local(0.0);
     Effect::new(move |_| {
         is_ticking.track();
@@ -164,8 +165,22 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
     let keys = StoredValue::<Vec<String>, LocalStorage>::new_local(Vec::new());
     let did_pan = StoredValue::new_local(false);
 
-    let UseClipboardReturn { copy, .. } = use_clipboard();
-    let push_toast = use_toast();
+    let UseClipboardReturn { copy, text, .. } = use_clipboard();
+    let (paste_universe, set_paste_universe) =
+        signal_local(Universe::with_size_and_arena_capacity(30, 0));
+    let (paste_size, set_paste_size) = signal_local((0, 0));
+    let (is_pasting, set_is_pasting) = signal_local(false);
+    let paste_rle = StoredValue::new_local(String::new());
+    let is_paste_canvas_dirty = StoredValue::new_local(false);
+    Effect::new(move |_| {
+        is_pasting.track();
+        paste_size.track();
+        paste_universe.track();
+        cursor.track();
+        canvas_size.track();
+        viewport.track();
+        is_paste_canvas_dirty.set_value(true);
+    });
 
     let div_ref = NodeRef::<html::Div>::new();
     div_ref.on_load(|div_el| {
@@ -179,6 +194,8 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
             ev.prevent_default();
         }
     });
+
+    let push_toast = use_toast();
 
     view! {
         <div class="absolute inset-0 w-screen h-screen overflow-hidden">
@@ -194,6 +211,25 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                     let is_space_held = keys.get_value().contains(&" ".to_owned());
                     match (ev.button(), is_space_held) {
                         (0, false) => {
+                            if is_pasting.get() {
+                                if let Ok(points) = rle::iter_alive(&paste_rle.get_value()) {
+                                    let (cx, cy) = cursor.get();
+                                    set_universe
+                                        .update(|u| {
+                                            u.set_points(
+                                                &points
+                                                    .map(|(x, y)| (
+                                                        x + cx.floor() as i64,
+                                                        y + cy.floor() as i64,
+                                                    ))
+                                                    .collect::<Vec<_>>(),
+                                                &InsertMode::Or,
+                                            );
+                                        });
+                                }
+                                set_is_pasting.set(false);
+                                return;
+                            }
                             if viewport.get().cell_size >= 5.0 {
                                 set_universe
                                     .update(|u| {
@@ -252,11 +288,13 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
 
                 on:wheel=move |ev| {
                     let (x, y) = offset_to_world(ev.offset_x(), ev.offset_y());
-                    let factor = std::f64::consts::E.powf(-ev.delta_y() / 1000.0);
+                    let factor = std::f64::consts::E
+                        .powf(-ev.delta_y() * (if ev.ctrl_key() { 10.0 } else { 1.0 }) / 1000.0);
                     set_viewport
                         .update(|vp| {
                             vp.zoom_at(factor, x, y);
                         });
+                    ev.prevent_default();
                 }
 
                 on:keydown=move |ev| {
@@ -291,6 +329,33 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                                     });
                             }
                         }
+                        "v" => {
+                            if let Some(rle) = text.get() {
+                                set_selection_start.set(None);
+                                set_selection_end.set(None);
+                                set_is_pasting.set(true);
+                                if rle == paste_rle.get_value() {
+                                    return;
+                                }
+                                paste_rle.set_value(rle.clone());
+                                if let Ok(points) = rle::iter_alive(&rle) {
+                                    set_paste_universe
+                                        .update(|u| {
+                                            u.set_points(
+                                                &points.collect::<Vec<_>>(),
+                                                &InsertMode::Copy,
+                                            );
+                                        });
+                                }
+                                if let Ok((PatternMetadata { width, height, .. }, _)) = rle::parse_metadata(
+                                    &rle,
+                                    "",
+                                    "",
+                                ) {
+                                    set_paste_size.set((width, height));
+                                }
+                            }
+                        }
                         "Delete" => {
                             if let Some((x1, y1, x2, y2)) = selection_rect.get() {
                                 set_universe
@@ -298,6 +363,10 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                                         u.clear_rect(x1, y1, x2, y2);
                                     });
                             }
+                        }
+                        "Escape" => {
+                            set_selection_start.set(None);
+                            set_selection_end.set(None);
                         }
                         _ => {}
                     }
@@ -333,11 +402,11 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                         c.clear();
                         universe
                             .with(|u| {
-                                draw::draw_node(c, &viewport.get(), u);
+                                draw::draw_node(c, &viewport.get(), u, 0xFFFFFFFF);
                             });
                         is_canvas_dirty.set_value(false);
                     } />
-                    <Layer draw=move |c, raf_args| {
+                    <Layer draw=move |c, _raf_args| {
                         let vp = viewport.get();
                         if !is_selection_dirty.get_value() {
                             return;
@@ -355,6 +424,34 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                         }
                         c.draw();
                         is_selection_dirty.set_value(false);
+                    } />
+                    <Layer draw=move |c, _raf_args| {
+                        if !is_paste_canvas_dirty.get_value() {
+                            return;
+                        }
+                        if !is_pasting.get() {
+                            c.clear();
+                            c.draw();
+                            return;
+                        }
+                        let (width, height) = paste_size.get();
+                        let mut vp = viewport.get();
+                        vp.origin.0 -= cursor.get().0.floor();
+                        vp.origin.1 -= cursor.get().1.floor();
+                        c.clear();
+                        c.fill_rect_with_viewport(
+                            &vp,
+                            0.0,
+                            0.0,
+                            width as f64,
+                            height as f64,
+                            0x00FFFF3F,
+                        );
+                        paste_universe
+                            .with(|u| {
+                                draw::draw_node(c, &vp, u, 0x00FFFFBF);
+                            });
+                        is_paste_canvas_dirty.set_value(false);
                     } />
                 </Stage>
             </div>

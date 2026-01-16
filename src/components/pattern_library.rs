@@ -3,7 +3,6 @@ use crate::components::ButtonVariant;
 use crate::parse::rle::PatternMetadata;
 use gloo_net::http::Request;
 use leptos::html;
-use leptos::logging;
 use leptos::prelude::*;
 use leptos_use::{UseInfiniteScrollOptions, use_infinite_scroll_with_options};
 

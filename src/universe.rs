@@ -2,7 +2,6 @@ use std::collections::VecDeque;
 
 use crate::{
     arena::Arena,
-    parse::rle,
     quadtree::{Branch, LEAF_LEVEL, LEAF_SIZE, Leaf, Node, NodeKind, NodeRef},
 };
 use rustc_hash::FxHashMap;
@@ -38,6 +37,10 @@ enum Bound {
     Right,
 }
 
+pub enum InsertMode {
+    Copy,
+    Or,
+}
 pub struct Universe {
     pub arena: Arena<Node, NodeKind>,
     pub cache: FxHashMap<Key, (NodeRef, u64)>,
@@ -83,43 +86,65 @@ impl Universe {
     pub fn _set_points(
         &mut self,
         points: &mut [(i64, i64)],
-        level: u8,
+        mode: &InsertMode,
+        curr: NodeRef,
         left: i64,
         top: i64,
     ) -> (NodeRef, u64) {
+        let node = self.arena.get(curr);
+        let level = node.level;
         if points.is_empty() {
-            return (self.empty_ref[level as usize], 0);
+            return match mode {
+                InsertMode::Copy => (self.empty_ref[level as usize], 0),
+                InsertMode::Or => (curr, node.population),
+            };
         }
-        if level == LEAF_LEVEL {
-            let mut data = Leaf::default();
-            let mut pop = 0;
-            for (x, y) in points {
-                data[(*y - top) as usize][(*x - left) as usize] = 1;
-                pop += 1;
-            }
-            (self.arena.insert(Node::new_leaf(data, pop)), pop)
-        } else {
-            let parts = Node::partition_points_mut(points, level, left, top);
-            let mut children = Branch::default();
-            let mut pop = 0;
-            for (i, child) in children.iter_mut().enumerate() {
-                let (ox, oy) = Node::get_child_offset(i, level);
-                let (c, c_pop) = self._set_points(parts[i], level - 1, left + ox, top + oy);
-                *child = c;
-                pop += c_pop;
-            }
+        match node.data {
+            NodeKind::Leaf(mut data) => {
+                let mut pop = node.population;
+                match mode {
+                    InsertMode::Copy => {
+                        data = Leaf::default();
+                        pop = 0;
+                        for (x, y) in points {
+                            pop += 1;
+                            data[(*y - top) as usize][(*x - left) as usize] = 1;
+                        }
+                    }
+                    InsertMode::Or => {
+                        for (x, y) in points {
+                            if data[(*y - top) as usize][(*x - left) as usize] == 0 {
+                                pop += 1;
+                            }
+                            data[(*y - top) as usize][(*x - left) as usize] = 1;
+                        }
+                    }
+                }
 
-            (
-                self.arena.insert(Node::new_branch(children, level, pop)),
-                pop,
-            )
+                (self.arena.insert(Node::new_leaf(data, pop)), pop)
+            }
+            NodeKind::Branch(mut children) => {
+                let parts = Node::partition_points_mut(points, level, left, top);
+                let mut pop = 0;
+                for (i, child) in children.iter_mut().enumerate() {
+                    let (ox, oy) = Node::get_child_offset(i, level);
+                    let (c, c_pop) = self._set_points(parts[i], mode, *child, left + ox, top + oy);
+                    *child = c;
+                    pop += c_pop;
+                }
+
+                (
+                    self.arena.insert(Node::new_branch(children, level, pop)),
+                    pop,
+                )
+            }
         }
     }
-    pub fn set_points(&mut self, points: &[(i64, i64)]) {
+    pub fn set_points(&mut self, points: &[(i64, i64)], mode: &InsertMode) {
         let q = 1i64 << (self.get_level() - 2);
         let mut points = points.to_owned();
         self.root = self
-            ._set_points(&mut points, self.get_level(), -2 * q, -2 * q)
+            ._set_points(&mut points, mode, self.root, -2 * q, -2 * q)
             .0;
     }
 
@@ -594,11 +619,6 @@ impl Universe {
             y2.clamp(-half, half - 1),
         );
         self.root = self._clear_rect(x1, y1, x2, y2, self.root).0;
-    }
-    pub fn set_rle(&mut self, x: i64, y: i64, rle: &str) {
-        for (xx, yy) in rle::iter_alive(rle).unwrap() {
-            self.set(x + xx, y + yy, 1);
-        }
     }
 
     fn _get_bound(&self, bound: &Bound, curr: NodeRef, left: i64, top: i64) -> i64 {

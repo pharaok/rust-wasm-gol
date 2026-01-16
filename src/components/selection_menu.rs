@@ -1,6 +1,6 @@
 use crate::{
     app::GolContext,
-    components::{Button, ButtonVariant, Divider, Icon, ToastContext, use_toast},
+    components::{Button, ButtonVariant, Divider, Icon, use_toast},
     parse::rle,
 };
 use leptos::prelude::*;

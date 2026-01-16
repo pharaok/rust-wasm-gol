@@ -1,9 +1,12 @@
-use crate::{parse::rle, universe::Universe};
+use crate::{
+    parse::rle,
+    universe::{InsertMode, Universe},
+};
 
 pub const META_CELL_LEVEL: u8 = 11;
 pub const META_CELL_SIZE: i64 = 1 << META_CELL_LEVEL;
 
-const CORNERS: &str = r#"
+const CORNERS_RLE: &str = r#"
 x = 2058, y = 2058, rule = B3/S23
 bo2054bo$obo2052bobo$bo2054bo2$4b2o2046b2o$4bo2048bo2047$4bo2048bo$4b
 2o2046b2o2$bo2054bo$obo2052bobo$bo2054bo!
@@ -19,7 +22,7 @@ impl Universe {
             .unwrap()
             .map(|p| (p.0 - 5, p.1 - 5))
             .collect::<Vec<_>>();
-        self.set_points(&off_points);
+        self.set_points(&off_points, &InsertMode::Copy);
         let meta_off_ref = self.get_node(0, 0, META_CELL_LEVEL);
         self.clear();
 
@@ -27,7 +30,7 @@ impl Universe {
             .unwrap()
             .map(|p| (p.0 - 5, p.1 - 5))
             .collect::<Vec<_>>();
-        self.set_points(&on_points);
+        self.set_points(&on_points, &InsertMode::Copy);
         let meta_on_ref = self.get_node(0, 0, META_CELL_LEVEL);
         self.clear();
 
@@ -50,9 +53,16 @@ impl Universe {
                 );
             }
         }
-        for y in -h..h {
-            for x in -h..h {
-                self.set_rle(x * META_CELL_SIZE - 5, y * META_CELL_SIZE - 5, CORNERS);
+        let corner_points = rle::iter_alive(CORNERS_RLE).unwrap().collect::<Vec<_>>();
+        for dy in -h..h {
+            for dx in -h..h {
+                self.set_points(
+                    &corner_points
+                        .iter()
+                        .map(|(x, y)| (x + dx * META_CELL_SIZE - 5, y + dy * META_CELL_SIZE - 5))
+                        .collect::<Vec<_>>(),
+                    &InsertMode::Or,
+                );
             }
         }
     }

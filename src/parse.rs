@@ -27,8 +27,8 @@ pub mod rle {
         pub path: String,
         pub comment: String,
         pub owner: Option<String>,
-        pub width: usize,
-        pub height: usize,
+        pub width: u32,
+        pub height: u32,
         pub rule: String,
     }
 
@@ -70,14 +70,14 @@ pub mod rle {
             Some(c) => c,
             None => return Err(()),
         };
-        let width: usize = captures
+        let width = captures
             .get(1)
             .as_string()
             .unwrap()
             .as_str()
             .parse()
             .unwrap();
-        let height: usize = captures
+        let height = captures
             .get(2)
             .as_string()
             .unwrap()
@@ -184,7 +184,7 @@ pub mod rle {
     pub fn to_grid(rle: &str) -> Result<Vec<Vec<u8>>, ()> {
         let (PatternMetadata { width, height, .. }, _) =
             parse_metadata(rle, "Unnamed Pattern", "")?;
-        let mut rect = vec![vec![0; width]; height];
+        let mut rect = vec![vec![0; width as usize]; height as usize];
         for (x, y) in iter_alive(rle)? {
             rect[y as usize][x as usize] = 1;
         }
