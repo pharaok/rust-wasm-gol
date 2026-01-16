@@ -1,7 +1,7 @@
 use crate::{
     app::fetch_pattern,
-    components::{Loading, Stage, Text},
-    draw::{self, Canvas},
+    components::{Layer, Loading, Stage, Text},
+    draw,
     parse::rle::PatternMetadata,
 };
 use leptos::prelude::*;
@@ -11,19 +11,12 @@ use leptos_router::components::*;
 pub fn PatternCard(#[prop(into)] pattern: Signal<PatternMetadata, LocalStorage>) -> impl IntoView {
     let pattern_rle = LocalResource::new(move || fetch_pattern(pattern.get().path));
 
-    let (canvas, set_canvas) = signal_local::<Option<Canvas>>(None);
+    let (canvas_size, set_canvas_size) = signal_local((0, 0));
     let (is_ready, set_is_ready) = signal_local(false);
+    let is_dirty = StoredValue::new_local(false);
     Effect::new(move |_| {
-        // track canvas to wait for initialization and resize.
-        canvas.track();
-        if let Some(Ok(rle)) = pattern_rle.get() {
-            set_canvas.update_untracked(|c| {
-                if let Some(c) = c {
-                    draw::draw_rle(c, rle);
-                    set_is_ready.set(true);
-                }
-            });
-        }
+        canvas_size.track();
+        is_dirty.set_value(true);
     });
 
     view! {
@@ -36,7 +29,19 @@ pub fn PatternCard(#[prop(into)] pattern: Signal<PatternMetadata, LocalStorage>)
                             <Loading />
                         </div>
                     </Show>
-                // <Stage canvas=canvas set_canvas=set_canvas />
+                    <Stage canvas_size=canvas_size set_canvas_size=set_canvas_size>
+                        <Layer draw=move |c, raf_args| {
+                            if !is_dirty.get_value() {
+                                return;
+                            }
+                            if let Some(Ok(rle)) = pattern_rle.get() {
+                                draw::draw_rle(c, rle);
+                                set_is_ready.set(true);
+                                c.draw();
+                                is_dirty.set_value(false);
+                            }
+                        } />
+                    </Stage>
                 </div>
             </A>
             <div class="overflow-hidden">
