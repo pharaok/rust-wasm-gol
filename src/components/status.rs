@@ -74,11 +74,11 @@ pub fn Status() -> impl IntoView {
     };
 
     view! {
-        <div class="flex justify-between text-sm">
+        <div class="flex flex-wrap justify-between text-sm">
             <div>
                 <Item>{move || pattern_name}</Item>
             </div>
-            <div class="inline-flex">
+            <div class="ml-auto inline-flex flex-wrap">
                 <Item>{move || format!("Step: {}", 1i64 << universe.with(|u| u.step))}</Item>
                 <Divider />
                 <Item>{move || format!("Gen: {}", universe.with(|u| u.generation))}</Item>

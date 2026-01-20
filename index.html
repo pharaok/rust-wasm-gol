@@ -11,8 +11,8 @@
         flex-direction: column;
         justify-content: center;
         align-items: center;
-        width: 100vw;
-        height: 100vh;
+        width: 100dvw;
+        height: 100dvh;
         background-color: black;
       }
       #loading-text {
@@ -23,10 +23,20 @@
       }
     </style>
     <link data-trunk rel="copy-file" href="CNAME" />
+    <link data-trunk rel="icon" href="public/favicon.svg" />
     <link data-trunk rel="tailwind-css" href="public/styles.css" />
     <link data-trunk rel="copy-dir" href="public/patterns" />
     <link data-trunk rel="copy-file" href="public/conwaylife.ico" />
     <link data-trunk rel="copy-file" href="public/patterns.json" />
+
+    <title>Game of Life</title>
+    <meta
+      name="description"
+      content="A Rust WASM implementation of Conway's Game of Life."
+    />
+    <meta name="author" content="pharaok" />
+    <meta name="charset" content="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
   </head>
 
   <body>

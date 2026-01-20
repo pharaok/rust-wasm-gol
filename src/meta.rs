@@ -1,4 +1,7 @@
+use leptos::prelude::*;
+
 use crate::{
+    app::{PatternResult, fetch_pattern},
     parse::rle,
     universe::{InsertMode, Universe},
 };
@@ -12,8 +15,16 @@ bo2054bo$obo2052bobo$bo2054bo2$4b2o2046b2o$4bo2048bo2047$4bo2048bo$4b
 2o2046b2o2$bo2054bo$obo2052bobo$bo2054bo!
 "#;
 
+pub fn use_metapixels() -> Signal<Option<(PatternResult, PatternResult)>, LocalStorage> {
+    let meta_on_rle =
+        LocalResource::new(move || fetch_pattern("otcametapixelonb3s23.rle".to_owned()));
+    let meta_off_rle =
+        LocalResource::new(move || fetch_pattern("otcametapixeloffb3s23.rle".to_owned()));
+    Signal::derive_local(move || meta_on_rle.get().zip(meta_off_rle.get()))
+}
+
 impl Universe {
-    pub fn set_grid_meta(&mut self, grid: &Vec<Vec<u8>>, meta_on_rle: &str, meta_off_rle: &str) {
+    pub fn set_grid_meta(&mut self, grid: &[Vec<u8>], meta_on_rle: &str, meta_off_rle: &str) {
         let (height, width) = (grid.len() as i64, grid[0].len() as i64);
         let h = 1 << (width + 2).max(height + 2).ilog2();
         let (extra_width, extra_height) = (2 * h - width, 2 * h - height);

@@ -1,6 +1,10 @@
 use crate::{
-    components::{Controls, Layer, SelectionMenu, SelectionOverlay, Stage, Status, use_toast},
+    components::{
+        ClipboardContext, Controls, Layer, PasteLayer, SelectionLayer, SelectionOverlay, Stage,
+        Status, use_toast,
+    },
     draw::{self, Viewport},
+    meta::use_metapixels,
     parse::rle::{self, PatternMetadata},
     universe::{InsertMode, Universe},
 };
@@ -29,7 +33,8 @@ pub struct GolContext {
     pub set_is_ticking: WriteSignal<bool, LocalStorage>,
 }
 
-pub async fn fetch_pattern(name: String) -> Result<String, ()> {
+pub type PatternResult = Result<String, ()>;
+pub async fn fetch_pattern(name: String) -> PatternResult {
     if name.is_empty() {
         return Err(());
     }
@@ -78,20 +83,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         move || params.with(|p| p.as_ref().unwrap().name.clone().unwrap_or_default());
     let pattern_rle = LocalResource::new(move || fetch_pattern(pattern_name()));
 
-    let meta_on_rle = if meta {
-        Some(LocalResource::new(move || {
-            fetch_pattern("otcametapixelonb3s23.rle".to_owned())
-        }))
-    } else {
-        None
-    };
-    let meta_off_rle = if meta {
-        Some(LocalResource::new(move || {
-            fetch_pattern("otcametapixeloffb3s23.rle".to_owned())
-        }))
-    } else {
-        None
-    };
+    let metapixels = use_metapixels();
 
     let did_fit = StoredValue::new_local(false);
     Effect::new(move |_| {
@@ -111,9 +103,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
             set_universe.update(|u| {
                 u.clear();
                 if meta {
-                    if let Some(Ok(on_rle)) = meta_on_rle.unwrap().get()
-                        && let Some(Ok(off_rle)) = meta_off_rle.unwrap().get()
-                    {
+                    if let Some((Ok(on_rle), Ok(off_rle))) = metapixels.get() {
                         let rect = rle::to_grid(&rle).unwrap();
                         u.set_grid_meta(&rect, &on_rle, &off_rle);
                     }
@@ -160,10 +150,16 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
     let did_pan = StoredValue::new_local(false);
 
     let UseClipboardReturn { copy, text, .. } = use_clipboard();
-    let (paste_universe, set_paste_universe) =
-        signal_local(Universe::with_size_and_arena_capacity(30, 0));
-    let (paste_size, set_paste_size) = signal_local((0, 0));
-    let (is_pasting, set_is_pasting) = signal_local(false);
+
+    let paste_universe = RwSignal::new_local(Universe::with_size_and_arena_capacity(30, 0));
+    let paste_size = RwSignal::new_local((0, 0));
+    let is_pasting = RwSignal::new_local(false);
+    provide_context(ClipboardContext {
+        paste_universe,
+        paste_size,
+        is_pasting,
+    });
+
     let paste_rle = StoredValue::new_local(String::new());
     let is_paste_canvas_dirty = StoredValue::new_local(false);
     Effect::new(move |_| {
@@ -192,7 +188,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
     let push_toast = use_toast();
 
     view! {
-        <div class="absolute inset-0 w-screen h-screen overflow-hidden">
+        <div class="absolute top-0 left-0 w-full h-[100dvh] overflow-hidden">
             <div
                 tabindex="0"
                 node_ref=div_ref
@@ -222,7 +218,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                                             );
                                         });
                                 }
-                                set_is_pasting.set(false);
+                                is_pasting.set(false);
                                 return;
                             }
                             if viewport.get().cell_size >= 5.0 {
@@ -328,13 +324,13 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                             if let Some(rle) = text.get() {
                                 set_selection_start.set(None);
                                 set_selection_end.set(None);
-                                set_is_pasting.set(true);
+                                is_pasting.set(true);
                                 if rle == paste_rle.get_value() {
                                     return;
                                 }
                                 paste_rle.set_value(rle.clone());
                                 if let Ok(points) = rle::iter_alive(&rle) {
-                                    set_paste_universe
+                                    paste_universe
                                         .update(|u| {
                                             let half = 1i64 << (u.get_level() - 1);
                                             u.set_points(
@@ -352,7 +348,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                                     "",
                                     "",
                                 ) {
-                                    set_paste_size.set((width as i64, height as i64));
+                                    paste_size.set((width as i64, height as i64));
                                 }
                             }
                         }
@@ -406,61 +402,19 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                             });
                         is_canvas_dirty.set_value(false);
                     } />
-                    <SelectionOverlay />
-                    <Layer draw=move |c, _raf_args| {
-                        if !is_paste_canvas_dirty.get_value() {
-                            return;
-                        }
-                        if !is_pasting.get() {
-                            c.clear();
-                            c.draw();
-                            return;
-                        }
-                        let (width, height) = paste_size.get();
-                        let mut vp = viewport.get();
-                        vp.origin.0 -= cursor.get().0.floor();
-                        vp.origin.1 -= cursor.get().1.floor();
-                        c.clear();
-                        c.fill_rect_with_viewport(
-                            &vp,
-                            0.0,
-                            0.0,
-                            width as f64,
-                            height as f64,
-                            0x00FFFF3F,
-                        );
-                        paste_universe
-                            .with(|u| {
-                                draw::draw_node(c, &vp, u, 0x00FFFFBF);
-                            });
-                        is_paste_canvas_dirty.set_value(false);
-                    } />
+                    <SelectionLayer />
+                    <PasteLayer />
                 </Stage>
             </div>
+            <SelectionOverlay is_open=is_selection_menu_shown />
             <div
-                class="z-10 absolute flex justify-end items-start pointer-events-none"
-                style:inset=move || {
-                    let vp = viewport.get();
-                    let (width, _) = canvas_size.get();
-                    if let Some((_, _, x2, y2)) = selection_rect.get() {
-                        let (r, b) = vp.to_canvas_coords((x2 + 1) as f64, (y2 + 1) as f64);
-                        format!("{}px {}px -9999px -9999px", b + 16, (width as i32) - r)
-                    } else {
-                        "9999px".to_owned()
-                    }
-                }
+                on:click=|e| e.stop_propagation()
+                class="flex flex-col z-10 absolute bottom-0 inset-x-0 gap-4"
             >
-                <Show when=is_selection_menu_shown fallback=|| view! {}>
-                    <SelectionMenu />
-                </Show>
-            </div>
-            <div on:click=|e| e.stop_propagation()>
-                <div class="z-10 absolute bottom-8 left-[50%] -translate-x-[50%]">
+                <div class="flex justify-center">
                     <Controls />
                 </div>
-                <div class="absolute bottom-0 inset-x-0">
-                    <Status />
-                </div>
+                <Status />
             </div>
         </div>
     }
