@@ -75,10 +75,10 @@ pub fn Controls() -> impl IntoView {
             <Button
                 variant=ButtonVariant::Icon
                 disabled=Signal::derive_local(move || {
-                    universe.with(|u| u.step >= u.get_level() as i32 - 2)
+                    universe.with(|u| u.step >= u.level() as i32 - 2)
                 })
                 on_press=move || {
-                    set_universe.update(|u| { u.step = (u.step + 1).min(u.get_level() as i32 - 2) })
+                    set_universe.update(|u| { u.step = (u.step + 1).min(u.level() as i32 - 2) })
                 }
             >
                 <Icon icon=icondata::LuFastForward />

@@ -34,7 +34,7 @@ impl Universe {
             .map(|p| (p.0 - 5, p.1 - 5))
             .collect::<Vec<_>>();
 
-        let half = 1i64 << (self.get_level() - 1);
+        let half = 1i64 << (self.level() - 1);
         self.set_points(
             &off_points,
             -half,

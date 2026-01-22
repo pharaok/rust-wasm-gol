@@ -234,7 +234,7 @@ fn _draw_node(
     };
 }
 pub fn draw_node(canvas: &mut Canvas, viewport: &Viewport, universe: &Universe, color: u32) {
-    let half = 1i64 << (universe.get_level() - 1);
+    let half = 1i64 << (universe.level() - 1);
     _draw_node(
         canvas,
         viewport,

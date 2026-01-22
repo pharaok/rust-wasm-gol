@@ -176,7 +176,7 @@ impl Universe {
         y2: i64,
         mut mode: &InsertMode,
     ) {
-        let q = 1i64 << (self.get_level() - 2);
+        let q = 1i64 << (self.level() - 2);
         let mut points = points.to_owned();
         if *mode == InsertMode::Copy {
             self.clear_rect(x1, y1, x2, y2);
@@ -211,10 +211,10 @@ impl Universe {
         }
     }
 
-    pub fn get_population(&self) -> u64 {
+    pub fn population(&self) -> u64 {
         self.arena.get(self.root()).population
     }
-    pub fn get_level(&self) -> u8 {
+    pub fn level(&self) -> u8 {
         self.arena.get(self.root()).level
     }
     fn _get_node(&self, x: i64, y: i64, level: u8, curr: NodeRef) -> NodeRef {
@@ -463,7 +463,7 @@ impl Universe {
     }
 
     pub fn clear(&mut self) {
-        *self.root_mut() = self.empty_ref[self.get_level() as usize];
+        *self.root_mut() = self.empty_ref[self.level() as usize];
     }
     fn _get(&self, x: i64, y: i64, curr: NodeRef) -> u8 {
         let node = self.arena.get(curr);
@@ -561,7 +561,7 @@ impl Universe {
         }
     }
     pub fn get_rect(&self, x1: i64, y1: i64, x2: i64, y2: i64) -> Vec<Vec<u8>> {
-        let half = 1i64 << (self.get_level() - 1);
+        let half = 1i64 << (self.level() - 1);
         let (x1, y1, x2, y2) = (
             x1.clamp(-half, half - 1),
             y1.clamp(-half, half - 1),
@@ -614,7 +614,7 @@ impl Universe {
         (self.arena.insert(new_node), new_node.population)
     }
     pub fn set_rect(&mut self, x: i64, y: i64, grid: &Vec<Vec<u8>>) {
-        let half = 1i64 << (self.get_level() - 1);
+        let half = 1i64 << (self.level() - 1);
         let (x, y) = (x.clamp(-half, half - 1), y.clamp(-half, half - 1));
         *self.root_mut() = self._set_rect(x, y, grid, self.root()).0;
     }
@@ -662,7 +662,7 @@ impl Universe {
         (self.arena.insert(new_node), new_node.population)
     }
     pub fn clear_rect(&mut self, x1: i64, y1: i64, x2: i64, y2: i64) {
-        let half = 1i64 << (self.get_level() - 1);
+        let half = 1i64 << (self.level() - 1);
         let (x1, y1, x2, y2) = (
             x1.clamp(-half, half - 1),
             y1.clamp(-half, half - 1),
@@ -733,7 +733,7 @@ impl Universe {
         best
     }
     pub fn get_bounding_rect(&self) -> (i64, i64, i64, i64) {
-        let h = 1i64 << (self.get_level() - 1);
+        let h = 1i64 << (self.level() - 1);
         (
             self._get_bound(&Bound::Left, self.root(), -h, -h),
             self._get_bound(&Bound::Top, self.root(), -h, -h),
@@ -831,11 +831,11 @@ impl<'a> Iterator for UniverseIterator<'a> {
 }
 impl Universe {
     pub fn iter_alive(&self) -> UniverseIterator<'_> {
-        let half = 1i64 << (self.get_level() - 1);
+        let half = 1i64 << (self.level() - 1);
         self.iter_alive_in_rect(-half, -half, half - 1, half - 1)
     }
     pub fn iter_alive_in_rect(&self, x1: i64, y1: i64, x2: i64, y2: i64) -> UniverseIterator<'_> {
-        let half = 1i64 << (self.get_level() - 1);
+        let half = 1i64 << (self.level() - 1);
         UniverseIterator {
             universe: self,
             stack: VecDeque::from([(self.root(), -half, -half)]),

@@ -111,12 +111,12 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                     }
                 } else {
                     let points = rle::iter_alive(&rle).unwrap().collect::<Vec<_>>();
-                    let half = 1i64 << (u.get_level() - 1);
+                    let half = 1i64 << (u.level() - 1);
                     u.set_points(&points, -half, -half, half - 1, half - 1, &InsertMode::Copy);
                 }
             });
 
-            if universe.with_untracked(|u| u.get_population()) != 0 {
+            if universe.with_untracked(|u| u.population()) != 0 {
                 let (x1, y1, x2, y2) = universe.with_untracked(|u| u.get_bounding_rect());
                 set_viewport.update(|vp| {
                     vp.fit_rect(
@@ -213,7 +213,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         paste_rle.set_value(rle.to_owned());
         if let Ok(points) = rle::iter_alive(rle) {
             paste_universe.update(|u| {
-                let half = 1i64 << (u.get_level() - 1);
+                let half = 1i64 << (u.level() - 1);
                 u.set_points(
                     &points.collect::<Vec<_>>(),
                     -half,
@@ -338,10 +338,12 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                     });
                     match (ev.key().as_str(), ev.ctrl_key()) {
                         ("a", true) => {
-                            let (x1, y1, x2, y2) = universe.with(|u| u.get_bounding_rect());
-                            set_selection_start.set(Some((x1, y1)));
-                            set_selection_end.set(Some((x2, y2)));
-                            set_is_selection_menu_shown.set(true);
+                            if universe.with(|u| u.population()) > 0 {
+                                let (x1, y1, x2, y2) = universe.with(|u| u.get_bounding_rect());
+                                set_selection_start.set(Some((x1, y1)));
+                                set_selection_end.set(Some((x2, y2)));
+                                set_is_selection_menu_shown.set(true);
+                            }
                             ev.prevent_default();
                         }
                         ("c", true) => {
