@@ -15,7 +15,33 @@ pub fn Controls() -> impl IntoView {
     } = use_context::<GolContext>().unwrap();
 
     view! {
-        <div class="rounded-lg pointer-events-auto flex overflow-hidden">
+        <div class="rounded-lg pointer-events-auto flex overflow-hidden bg-neutral-900">
+            <Button
+                variant=ButtonVariant::Icon
+                disabled=Signal::derive_local(move || universe.with(|u| !u.can_undo()))
+                on_press=move || {
+                    set_universe
+                        .update(|u| {
+                            u.undo();
+                        });
+                }
+            >
+                <Icon icon=icondata::LuUndo2 />
+            </Button>
+            // <Divider />
+            <Button
+                variant=ButtonVariant::Icon
+                disabled=Signal::derive_local(move || universe.with(|u| !u.can_redo()))
+                on_press=move || {
+                    set_universe
+                        .update(|u| {
+                            u.redo();
+                        });
+                }
+            >
+                <Icon icon=icondata::LuRedo2 />
+            </Button>
+            <Divider />
             <Button
                 variant=ButtonVariant::Icon
                 disabled=Signal::derive_local(move || universe.with(|u| u.step <= 0))
@@ -23,17 +49,7 @@ pub fn Controls() -> impl IntoView {
             >
                 <Icon icon=icondata::LuRewind />
             </Button>
-            <Divider />
-            <Button
-                variant=ButtonVariant::Icon
-                disabled=true
-                on_press=move || {
-                    unimplemented!("history");
-                }
-            >
-                <Icon icon=icondata::LuStepBack />
-            </Button>
-            <Divider />
+            // <Divider />
             <Button
                 variant=ButtonVariant::Icon
                 on_press=move || {
@@ -48,14 +64,14 @@ pub fn Controls() -> impl IntoView {
                     }
                 }}
             </Button>
-            <Divider />
+            // <Divider />
             <Button
                 variant=ButtonVariant::Icon
                 on_press=move || { set_universe.update(|u| { u.step() }) }
             >
                 <Icon icon=icondata::LuStepForward />
             </Button>
-            <Divider />
+            // <Divider />
             <Button
                 variant=ButtonVariant::Icon
                 disabled=Signal::derive_local(move || {

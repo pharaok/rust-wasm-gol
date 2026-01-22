@@ -18,7 +18,7 @@ pub fn Menu(children: ChildrenFn) -> impl IntoView {
         <Portal mount=document().body().unwrap()>
             <div class=move || {
                 format!(
-                    "fixed inset-y-0 right-0 bg-neutral-900 transition-transform transition-300 {}",
+                    "z-50 fixed inset-y-0 right-0 bg-neutral-900 transition-transform transition-300 {}",
                     if open.get() { "translate-x-0" } else { "translate-x-full" },
                 )
             }>{children()}</div>

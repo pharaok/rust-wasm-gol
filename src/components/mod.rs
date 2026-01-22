@@ -32,7 +32,7 @@ pub use crate::components::toast::*;
 
 #[component]
 pub fn Divider() -> impl IntoView {
-    view! { <div class="border-l-2 border-neutral-700"></div> }
+    view! { <div class="border-l border-neutral-700 my-2"></div> }
 }
 
 #[component]

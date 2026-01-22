@@ -9,7 +9,7 @@ use crate::{
     universe::{InsertMode, Universe},
 };
 use gloo_net::http::Request;
-use leptos::{ev::mousedown, html, prelude::*};
+use leptos::{ev::mousedown, html, logging, prelude::*};
 use leptos_router::hooks::*;
 use leptos_router::params::Params;
 use leptos_use::{UseClipboardReturn, use_clipboard, use_document, use_event_listener};
@@ -78,6 +78,8 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         set_is_ticking,
     });
 
+    let push_toast = use_toast();
+
     let params = use_params::<GolParams>();
     let pattern_name =
         move || params.with(|p| p.as_ref().unwrap().name.clone().unwrap_or_default());
@@ -143,6 +145,11 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
     let prev_tick = StoredValue::new_local(0.0);
     Effect::new(move |_| {
         is_ticking.track();
+        if is_ticking.get() {
+            set_universe.update(|u| {
+                u.push_snapshot();
+            });
+        }
         prev_tick.set_value(0.0);
     });
 
@@ -171,6 +178,61 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         viewport.track();
         is_paste_canvas_dirty.set_value(true);
     });
+    let copy_selection_rle = move || {
+        if let Some((x1, y1, x2, y2)) = selection_rect.get() {
+            universe.with(|u| {
+                let rle = rle::from_iter(u.iter_alive_in_rect(x1, y1, x2, y2), x1, y1, x2, y2);
+                copy(&rle);
+                push_toast.run("Copied RLE to clipboard!".to_owned());
+            });
+        }
+    };
+    let paste = move || {
+        if let Ok(points) = rle::iter_alive(&paste_rle.get_value()) {
+            let (cx, cy) = cursor.with(|(x, y)| (x.floor() as i64, y.floor() as i64));
+            let (width, height) = paste_size.get();
+            set_universe.update(|u| {
+                u.set_points(
+                    &points.map(|(x, y)| (x + cx, y + cy)).collect::<Vec<_>>(),
+                    cx,
+                    cy,
+                    cx + width - 1,
+                    cy + height - 1,
+                    &InsertMode::Or,
+                );
+            });
+        }
+        is_pasting.set(false);
+    };
+    let start_pasting = move |rle: &str| {
+        is_pasting.set(true);
+        if rle == paste_rle.get_value() {
+            return;
+        }
+        paste_rle.set_value(rle.to_owned());
+        if let Ok(points) = rle::iter_alive(rle) {
+            paste_universe.update(|u| {
+                let half = 1i64 << (u.get_level() - 1);
+                u.set_points(
+                    &points.collect::<Vec<_>>(),
+                    -half,
+                    -half,
+                    half - 1,
+                    half - 1,
+                    &InsertMode::Copy,
+                );
+            });
+        }
+        if let Ok((PatternMetadata { width, height, .. }, _)) = rle::parse_metadata(rle, "", "") {
+            paste_size.set((width as i64, height as i64));
+        }
+    };
+    let toggle_cell = move |x: i64, y: i64| {
+        set_universe.update(|u| {
+            let v = u.get(x, y);
+            u.set(x, y, v ^ 1);
+        });
+    };
 
     let div_ref = NodeRef::<html::Div>::new();
     div_ref.on_load(|div_el| {
@@ -184,8 +246,6 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
             ev.prevent_default();
         }
     });
-
-    let push_toast = use_toast();
 
     view! {
         <div class="absolute top-0 left-0 w-full h-[100dvh] overflow-hidden">
@@ -201,37 +261,18 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                     let is_space_held = keys.get_value().contains(&" ".to_owned());
                     match (ev.button(), is_space_held) {
                         (0, false) => {
-                            if is_pasting.get() {
-                                if let Ok(points) = rle::iter_alive(&paste_rle.get_value()) {
-                                    let (cx, cy) = cursor
-                                        .with(|(x, y)| (x.floor() as i64, y.floor() as i64));
-                                    let (width, height) = paste_size.get();
-                                    set_universe
-                                        .update(|u| {
-                                            u.set_points(
-                                                &points.map(|(x, y)| (x + cx, y + cy)).collect::<Vec<_>>(),
-                                                cx,
-                                                cy,
-                                                cx + width - 1,
-                                                cy + height - 1,
-                                                &InsertMode::Or,
-                                            );
-                                        });
-                                }
-                                is_pasting.set(false);
-                                return;
-                            }
-                            if viewport.get().cell_size >= 5.0 {
-                                set_universe
-                                    .update(|u| {
-                                        let (x, y) = (x.floor() as i64, y.floor() as i64);
-                                        let v = u.get(x, y);
-                                        u.set(x, y, v ^ 1);
-                                    });
-                            }
                             set_selection_start.set(None);
                             set_selection_end.set(None);
                             set_is_selection_menu_shown.set(false);
+                            if is_pasting.get() {
+                                paste();
+                            } else if viewport.get().cell_size >= 5.0 {
+                                toggle_cell(x.floor() as i64, y.floor() as i64);
+                                set_universe
+                                    .update(|u| {
+                                        u.push_snapshot();
+                                    });
+                            }
                         }
                         (1, _) | (0, true) => {
                             pan.set_value(Some((x, y)));
@@ -294,65 +335,32 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                             ks.push(ev.key())
                         }
                     });
-                    match ev.key().as_str() {
-                        "a" => {
-                            if ev.ctrl_key() {
-                                let (x1, y1, x2, y2) = universe.with(|u| u.get_bounding_rect());
-                                set_selection_start.set(Some((x1, y1)));
-                                set_selection_end.set(Some((x2, y2)));
-                                set_is_selection_menu_shown.set(true);
-                                ev.prevent_default();
-                            }
+                    logging::log!("{} {}", ev.ctrl_key(), ev.shift_key(),);
+                    match (ev.key().as_str(), ev.ctrl_key()) {
+                        ("a", true) => {
+                            let (x1, y1, x2, y2) = universe.with(|u| u.get_bounding_rect());
+                            set_selection_start.set(Some((x1, y1)));
+                            set_selection_end.set(Some((x2, y2)));
+                            set_is_selection_menu_shown.set(true);
+                            ev.prevent_default();
                         }
-                        "c" => {
-                            if let Some((x1, y1, x2, y2)) = selection_rect.get() {
-                                universe
-                                    .with(|u| {
-                                        let rle = rle::from_iter(
-                                            u.iter_alive_in_rect(x1, y1, x2, y2),
-                                            x1,
-                                            y1,
-                                            x2,
-                                            y2,
-                                        );
-                                        copy(&rle);
-                                        push_toast.run("Copied RLE to clipboard!".to_owned());
-                                    });
-                            }
+                        ("c", true) => {
+                            copy_selection_rle();
                         }
-                        "v" => {
+                        ("v", true) => {
                             if let Some(rle) = text.get() {
                                 set_selection_start.set(None);
                                 set_selection_end.set(None);
-                                is_pasting.set(true);
-                                if rle == paste_rle.get_value() {
-                                    return;
-                                }
-                                paste_rle.set_value(rle.clone());
-                                if let Ok(points) = rle::iter_alive(&rle) {
-                                    paste_universe
-                                        .update(|u| {
-                                            let half = 1i64 << (u.get_level() - 1);
-                                            u.set_points(
-                                                &points.collect::<Vec<_>>(),
-                                                -half,
-                                                -half,
-                                                half - 1,
-                                                half - 1,
-                                                &InsertMode::Copy,
-                                            );
-                                        });
-                                }
-                                if let Ok((PatternMetadata { width, height, .. }, _)) = rle::parse_metadata(
-                                    &rle,
-                                    "",
-                                    "",
-                                ) {
-                                    paste_size.set((width as i64, height as i64));
-                                }
+                                start_pasting(&rle);
                             }
                         }
-                        "Delete" => {
+                        ("z", true) => {
+                            set_universe.update(|u| u.undo());
+                        }
+                        ("Z", true) | ("y", true) => {
+                            set_universe.update(|u| u.redo());
+                        }
+                        ("Delete", _) => {
                             if let Some((x1, y1, x2, y2)) = selection_rect.get() {
                                 set_universe
                                     .update(|u| {
@@ -360,7 +368,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                                     });
                             }
                         }
-                        "Escape" => {
+                        ("Escape", _) => {
                             set_selection_start.set(None);
                             set_selection_end.set(None);
                         }

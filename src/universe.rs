@@ -4,6 +4,7 @@ use crate::{
     arena::Arena,
     quadtree::{Branch, LEAF_LEVEL, LEAF_SIZE, Leaf, Node, NodeKind, NodeRef},
 };
+use leptos::logging;
 use rustc_hash::FxHashMap;
 
 pub fn step_grid(grid: &[Vec<u8>], res: &mut [Vec<u8>]) {
@@ -49,6 +50,8 @@ pub struct Universe {
     pub root: NodeRef,
     pub generation: u64,
     pub step: i32,
+    pub history: Vec<NodeRef>,
+    pub history_index: usize,
 }
 
 pub const ARENA_SIZE: usize = 1 << 10;
@@ -71,6 +74,7 @@ impl Universe {
         let root = empty_ref[size as usize];
         let mut cache = FxHashMap::default();
         cache.reserve(capacity);
+        let history = vec![root];
         Self {
             arena,
             cache,
@@ -78,6 +82,8 @@ impl Universe {
             root,
             generation: 0,
             step: 0,
+            history,
+            history_index: 0,
         }
     }
     pub fn with_size(size: u8) -> Self {
@@ -718,6 +724,35 @@ impl Universe {
             self._get_bound(&Bound::Right, self.root, -h, -h),
             self._get_bound(&Bound::Bottom, self.root, -h, -h),
         )
+    }
+
+    pub fn can_undo(&self) -> bool {
+        self.history_index > 0
+    }
+    pub fn undo(&mut self) {
+        if !self.can_undo() {
+            return;
+        };
+        if !self.can_redo() && self.root != *self.history.last().unwrap() {
+            self.push_snapshot();
+        }
+        self.history_index -= 1;
+        self.root = self.history[self.history_index];
+    }
+    pub fn can_redo(&self) -> bool {
+        self.history_index + 1 < self.history.len()
+    }
+    pub fn redo(&mut self) {
+        if !self.can_redo() {
+            return;
+        }
+        self.history_index += 1;
+        self.root = self.history[self.history_index];
+    }
+    pub fn push_snapshot(&mut self) {
+        self.history.truncate(self.history_index + 1);
+        self.history.push(self.root);
+        self.history_index += 1;
     }
 }
 
