@@ -31,6 +31,8 @@ pub struct GolContext {
     pub selection_rect: Signal<Option<(i64, i64, i64, i64)>, LocalStorage>,
     pub is_ticking: ReadSignal<bool, LocalStorage>,
     pub set_is_ticking: WriteSignal<bool, LocalStorage>,
+    pub tps: ReadSignal<f64, LocalStorage>,
+    pub set_tps: WriteSignal<f64, LocalStorage>,
 }
 
 pub type PatternResult = Result<String, ()>;
@@ -53,7 +55,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
     let (viewport, set_viewport) = signal_local(Viewport::new());
     let (cursor, set_cursor) = signal_local((0.0, 0.0));
     let (is_ticking, set_is_ticking) = signal_local(false);
-    let tps = StoredValue::new(20.0);
+    let (tps, set_tps) = signal_local(16.0);
     let offset_to_world = move |x: i32, y: i32| viewport.with(|vp| vp.to_world_coords(x, y));
     let pan = StoredValue::<Option<(f64, f64)>>::new(None);
 
@@ -76,6 +78,8 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         selection_rect,
         is_ticking,
         set_is_ticking,
+        tps,
+        set_tps,
     });
 
     let push_toast = use_toast();
@@ -393,9 +397,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                 <Stage canvas_size=canvas_size set_canvas_size=set_canvas_size>
                     <Layer draw=move |c, raf_args| {
                         let now = raf_args.timestamp;
-                        if is_ticking.get()
-                            && now - prev_tick.get_value() > 1000.0 / tps.get_value()
-                        {
+                        if is_ticking.get() && now - prev_tick.get_value() > 1000.0 / tps.get() {
                             set_universe
                                 .update(|u| {
                                     u.step();

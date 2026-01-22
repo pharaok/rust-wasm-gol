@@ -4,7 +4,6 @@ use crate::{
     arena::Arena,
     quadtree::{Branch, LEAF_LEVEL, LEAF_SIZE, Leaf, Node, NodeKind, NodeRef},
 };
-use leptos::logging;
 use rustc_hash::FxHashMap;
 
 pub fn step_grid(grid: &[Vec<u8>], res: &mut [Vec<u8>]) {

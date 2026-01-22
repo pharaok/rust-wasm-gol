@@ -11,6 +11,8 @@ pub fn Controls() -> impl IntoView {
         set_universe,
         is_ticking,
         set_is_ticking,
+        tps,
+        set_tps,
         ..
     } = use_context::<GolContext>().unwrap();
 
@@ -28,7 +30,6 @@ pub fn Controls() -> impl IntoView {
             >
                 <Icon icon=icondata::LuUndo2 />
             </Button>
-            // <Divider />
             <Button
                 variant=ButtonVariant::Icon
                 disabled=Signal::derive_local(move || universe.with(|u| !u.can_redo()))
@@ -44,12 +45,16 @@ pub fn Controls() -> impl IntoView {
             <Divider />
             <Button
                 variant=ButtonVariant::Icon
-                disabled=Signal::derive_local(move || universe.with(|u| u.step <= 0))
-                on_press=move || { set_universe.update(|u| { u.step = (u.step - 1).max(0) }) }
+                on_press=move || {
+                    if universe.with(|u| u.step <= 0) {
+                        set_tps.update(|tps| *tps /= 2.0);
+                    } else {
+                        set_universe.update(|u| { u.step = (u.step - 1).max(0) })
+                    }
+                }
             >
                 <Icon icon=icondata::LuRewind />
             </Button>
-            // <Divider />
             <Button
                 variant=ButtonVariant::Icon
                 on_press=move || {
@@ -64,21 +69,23 @@ pub fn Controls() -> impl IntoView {
                     }
                 }}
             </Button>
-            // <Divider />
             <Button
                 variant=ButtonVariant::Icon
                 on_press=move || { set_universe.update(|u| { u.step() }) }
             >
                 <Icon icon=icondata::LuStepForward />
             </Button>
-            // <Divider />
             <Button
                 variant=ButtonVariant::Icon
                 disabled=Signal::derive_local(move || {
                     universe.with(|u| u.step >= u.level() as i32 - 2)
                 })
                 on_press=move || {
-                    set_universe.update(|u| { u.step = (u.step + 1).min(u.level() as i32 - 2) })
+                    if tps.get() < 16.0 {
+                        set_tps.update(|tps| *tps *= 2.0);
+                    } else {
+                        set_universe.update(|u| { u.step = (u.step + 1).min(u.level() as i32 - 2) })
+                    }
                 }
             >
                 <Icon icon=icondata::LuFastForward />
