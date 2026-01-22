@@ -47,7 +47,6 @@ pub struct Universe {
     pub arena: Arena<Node, NodeKind>,
     pub cache: FxHashMap<Key, (NodeRef, u64)>,
     pub empty_ref: Vec<NodeRef>,
-    pub root: NodeRef,
     pub generation: u64,
     pub step: i32,
     pub history: Vec<NodeRef>,
@@ -79,7 +78,6 @@ impl Universe {
             arena,
             cache,
             empty_ref,
-            root,
             generation: 0,
             step: 0,
             history,
@@ -88,6 +86,12 @@ impl Universe {
     }
     pub fn with_size(size: u8) -> Self {
         Self::with_size_and_arena_capacity(size, ARENA_SIZE)
+    }
+    pub fn root(&self) -> NodeRef {
+        self.history[self.history_index]
+    }
+    pub fn root_mut(&mut self) -> &mut NodeRef {
+        &mut self.history[self.history_index]
     }
 
     pub fn _set_points(
@@ -178,8 +182,18 @@ impl Universe {
             self.clear_rect(x1, y1, x2, y2);
             mode = &InsertMode::Or;
         }
-        self.root = self
-            ._set_points(&mut points, x1, y1, x2, y2, mode, self.root, -2 * q, -2 * q)
+        *self.root_mut() = self
+            ._set_points(
+                &mut points,
+                x1,
+                y1,
+                x2,
+                y2,
+                mode,
+                self.root(),
+                -2 * q,
+                -2 * q,
+            )
             .0;
     }
 
@@ -198,10 +212,10 @@ impl Universe {
     }
 
     pub fn get_population(&self) -> u64 {
-        self.arena.get(self.root).population
+        self.arena.get(self.root()).population
     }
     pub fn get_level(&self) -> u8 {
-        self.arena.get(self.root).level
+        self.arena.get(self.root()).level
     }
     fn _get_node(&self, x: i64, y: i64, level: u8, curr: NodeRef) -> NodeRef {
         let node = self.arena.get(curr);
@@ -213,7 +227,7 @@ impl Universe {
         self._get_node(xx, yy, level, node.get_child(x, y))
     }
     pub fn get_node(&self, x: i64, y: i64, level: u8) -> NodeRef {
-        self._get_node(x, y, level, self.root)
+        self._get_node(x, y, level, self.root())
     }
     fn _set_node(
         &mut self,
@@ -250,7 +264,7 @@ impl Universe {
         }
     }
     pub fn set_node(&mut self, x: i64, y: i64, level: u8, node_ref: NodeRef) {
-        self.root = self._set_node(x, y, level, node_ref, self.root).0;
+        *self.root_mut() = self._set_node(x, y, level, node_ref, self.root()).0;
     }
 
     pub fn grown(&mut self, node_ref: NodeRef) -> NodeRef {
@@ -320,11 +334,13 @@ impl Universe {
     }
 
     pub fn step(&mut self) {
-        let step = self.step.min((self.arena.get(self.root).level - 2) as i32);
-        let root_ref = self.grown(self.root);
+        let step = self
+            .step
+            .min((self.arena.get(self.root()).level - 2) as i32);
+        let root_ref = self.grown(self.root());
         let next = self.step_node(root_ref, self.step).0;
         self.generation += 1u64 << step;
-        self.root = next;
+        *self.root_mut() = next;
     }
 
     fn step_node(&mut self, curr: NodeRef, mut step: i32) -> (NodeRef, u64) {
@@ -447,7 +463,7 @@ impl Universe {
     }
 
     pub fn clear(&mut self) {
-        self.root = self.empty_ref[self.get_level() as usize];
+        *self.root_mut() = self.empty_ref[self.get_level() as usize];
     }
     fn _get(&self, x: i64, y: i64, curr: NodeRef) -> u8 {
         let node = self.arena.get(curr);
@@ -464,7 +480,7 @@ impl Universe {
         }
     }
     pub fn get(&self, x: i64, y: i64) -> u8 {
-        self._get(x, y, self.root)
+        self._get(x, y, self.root())
     }
     fn _set(&mut self, x: i64, y: i64, value: u8, curr: NodeRef) -> (NodeRef, i64) {
         let node = *self.arena.get(curr);
@@ -502,7 +518,7 @@ impl Universe {
         )
     }
     pub fn set(&mut self, x: i64, y: i64, value: u8) {
-        self.root = self._set(x, y, value, self.root).0;
+        *self.root_mut() = self._set(x, y, value, self.root()).0;
         self.generation = 0
     }
 
@@ -556,7 +572,7 @@ impl Universe {
         let (w, h) = ((x2 - x1) as usize, (y2 - y1) as usize);
         let mut grid = vec![vec![0; w]; h];
 
-        self._get_rect(x1, y1, x2, y2, &mut grid, self.root);
+        self._get_rect(x1, y1, x2, y2, &mut grid, self.root());
 
         grid
     }
@@ -600,7 +616,7 @@ impl Universe {
     pub fn set_rect(&mut self, x: i64, y: i64, grid: &Vec<Vec<u8>>) {
         let half = 1i64 << (self.get_level() - 1);
         let (x, y) = (x.clamp(-half, half - 1), y.clamp(-half, half - 1));
-        self.root = self._set_rect(x, y, grid, self.root).0;
+        *self.root_mut() = self._set_rect(x, y, grid, self.root()).0;
     }
     fn _clear_rect(&mut self, x1: i64, y1: i64, x2: i64, y2: i64, curr: NodeRef) -> (NodeRef, u64) {
         let node = *self.arena.get(curr);
@@ -653,7 +669,7 @@ impl Universe {
             x2.clamp(-half, half - 1),
             y2.clamp(-half, half - 1),
         );
-        self.root = self._clear_rect(x1, y1, x2, y2, self.root).0;
+        *self.root_mut() = self._clear_rect(x1, y1, x2, y2, self.root()).0;
     }
 
     fn _get_bound(&self, bound: &Bound, curr: NodeRef, left: i64, top: i64) -> i64 {
@@ -719,10 +735,10 @@ impl Universe {
     pub fn get_bounding_rect(&self) -> (i64, i64, i64, i64) {
         let h = 1i64 << (self.get_level() - 1);
         (
-            self._get_bound(&Bound::Left, self.root, -h, -h),
-            self._get_bound(&Bound::Top, self.root, -h, -h),
-            self._get_bound(&Bound::Right, self.root, -h, -h),
-            self._get_bound(&Bound::Bottom, self.root, -h, -h),
+            self._get_bound(&Bound::Left, self.root(), -h, -h),
+            self._get_bound(&Bound::Top, self.root(), -h, -h),
+            self._get_bound(&Bound::Right, self.root(), -h, -h),
+            self._get_bound(&Bound::Bottom, self.root(), -h, -h),
         )
     }
 
@@ -733,11 +749,11 @@ impl Universe {
         if !self.can_undo() {
             return;
         };
-        if !self.can_redo() && self.root != *self.history.last().unwrap() {
+        if !self.can_redo() && self.root() != *self.history.last().unwrap() {
             self.push_snapshot();
         }
         self.history_index -= 1;
-        self.root = self.history[self.history_index];
+        *self.root_mut() = self.history[self.history_index];
     }
     pub fn can_redo(&self) -> bool {
         self.history_index + 1 < self.history.len()
@@ -747,11 +763,11 @@ impl Universe {
             return;
         }
         self.history_index += 1;
-        self.root = self.history[self.history_index];
+        *self.root_mut() = self.history[self.history_index];
     }
     pub fn push_snapshot(&mut self) {
         self.history.truncate(self.history_index + 1);
-        self.history.push(self.root);
+        self.history.push(self.root());
         self.history_index += 1;
     }
 }
@@ -822,7 +838,7 @@ impl Universe {
         let half = 1i64 << (self.get_level() - 1);
         UniverseIterator {
             universe: self,
-            stack: VecDeque::from([(self.root, -half, -half)]),
+            stack: VecDeque::from([(self.root(), -half, -half)]),
             leaf_queue: VecDeque::new(),
             x1,
             y1,

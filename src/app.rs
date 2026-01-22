@@ -192,6 +192,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
             let (cx, cy) = cursor.with(|(x, y)| (x.floor() as i64, y.floor() as i64));
             let (width, height) = paste_size.get();
             set_universe.update(|u| {
+                u.push_snapshot();
                 u.set_points(
                     &points.map(|(x, y)| (x + cx, y + cy)).collect::<Vec<_>>(),
                     cx,
@@ -267,11 +268,11 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                             if is_pasting.get() {
                                 paste();
                             } else if viewport.get().cell_size >= 5.0 {
-                                toggle_cell(x.floor() as i64, y.floor() as i64);
                                 set_universe
                                     .update(|u| {
                                         u.push_snapshot();
                                     });
+                                toggle_cell(x.floor() as i64, y.floor() as i64);
                             }
                         }
                         (1, _) | (0, true) => {
@@ -335,7 +336,6 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                             ks.push(ev.key())
                         }
                     });
-                    logging::log!("{} {}", ev.ctrl_key(), ev.shift_key(),);
                     match (ev.key().as_str(), ev.ctrl_key()) {
                         ("a", true) => {
                             let (x1, y1, x2, y2) = universe.with(|u| u.get_bounding_rect());
