@@ -11,7 +11,6 @@ use rand::Rng;
 pub fn SelectionMenu() -> impl IntoView {
     let GolContext {
         universe,
-        set_universe,
         selection_rect,
         ..
     } = use_context::<GolContext>().unwrap();
@@ -25,7 +24,7 @@ pub fn SelectionMenu() -> impl IntoView {
                 on_press=move || {
                     if let Some((x1, y1, x2, y2)) = selection_rect.get() {
                         let mut rng = rand::rng();
-                        set_universe
+                        universe
                             .update(|u| {
                                 for y in y1..=y2 {
                                     for x in x1..=x2 {
@@ -44,7 +43,7 @@ pub fn SelectionMenu() -> impl IntoView {
                 variant=ButtonVariant::Icon
                 on_press=move || {
                     if let Some((x1, y1, x2, y2)) = selection_rect.get() {
-                        set_universe
+                        universe
                             .update(|u| {
                                 u.clear_rect(x1, y1, x2, y2);
                             });

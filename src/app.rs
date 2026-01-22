@@ -9,7 +9,7 @@ use crate::{
     universe::{InsertMode, Universe},
 };
 use gloo_net::http::Request;
-use leptos::{ev::mousedown, html, logging, prelude::*};
+use leptos::{ev::mousedown, html, prelude::*};
 use leptos_router::hooks::*;
 use leptos_router::params::Params;
 use leptos_use::{UseClipboardReturn, use_clipboard, use_document, use_event_listener};
@@ -21,18 +21,13 @@ pub struct GolParams {
 
 #[derive(Clone)]
 pub struct GolContext {
-    pub universe: ReadSignal<Universe, LocalStorage>,
-    pub set_universe: WriteSignal<Universe, LocalStorage>,
+    pub universe: RwSignal<Universe, LocalStorage>,
     pub canvas_size: ReadSignal<(u32, u32), LocalStorage>,
-    pub viewport: ReadSignal<Viewport, LocalStorage>,
-    pub set_viewport: WriteSignal<Viewport, LocalStorage>,
-    pub cursor: ReadSignal<(f64, f64), LocalStorage>,
-    pub set_cursor: WriteSignal<(f64, f64), LocalStorage>,
+    pub viewport: RwSignal<Viewport, LocalStorage>,
+    pub cursor: RwSignal<(f64, f64), LocalStorage>,
     pub selection_rect: Signal<Option<(i64, i64, i64, i64)>, LocalStorage>,
-    pub is_ticking: ReadSignal<bool, LocalStorage>,
-    pub set_is_ticking: WriteSignal<bool, LocalStorage>,
-    pub tps: ReadSignal<f64, LocalStorage>,
-    pub set_tps: WriteSignal<f64, LocalStorage>,
+    pub is_ticking: RwSignal<bool, LocalStorage>,
+    pub tps: RwSignal<f64, LocalStorage>,
 }
 
 pub type PatternResult = Result<String, ()>;
@@ -47,15 +42,12 @@ pub async fn fetch_pattern(name: String) -> PatternResult {
 
 #[component]
 pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
-    // WARN: a large Universe results in catastrophic cancellation in
-    // draw_node, which causes issues with rendering and panning.
-    let (universe, set_universe) =
-        signal_local(Universe::with_size_and_arena_capacity(60, 1 << 16));
+    let universe = RwSignal::new_local(Universe::with_size_and_arena_capacity(60, 1 << 16));
     let (canvas_size, set_canvas_size) = signal_local((0, 0));
-    let (viewport, set_viewport) = signal_local(Viewport::new());
-    let (cursor, set_cursor) = signal_local((0.0, 0.0));
-    let (is_ticking, set_is_ticking) = signal_local(false);
-    let (tps, set_tps) = signal_local(16.0);
+    let viewport = RwSignal::new_local(Viewport::new());
+    let cursor = RwSignal::new_local((0.0, 0.0));
+    let is_ticking = RwSignal::new_local(false);
+    let tps = RwSignal::new_local(16.0);
     let offset_to_world = move |x: i32, y: i32| viewport.with(|vp| vp.to_world_coords(x, y));
     let pan = StoredValue::<Option<(f64, f64)>>::new(None);
 
@@ -69,17 +61,12 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
 
     provide_context(GolContext {
         universe,
-        set_universe,
         canvas_size,
         viewport,
-        set_viewport,
         cursor,
-        set_cursor,
         selection_rect,
         is_ticking,
-        set_is_ticking,
         tps,
-        set_tps,
     });
 
     let push_toast = use_toast();
@@ -106,7 +93,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         if let Some(Ok(rle)) = pattern_rle.get()
             && rle::parse_metadata(&rle, "", "").is_ok()
         {
-            set_universe.update(|u| {
+            universe.update(|u| {
                 u.clear();
                 if meta {
                     if let Some((Ok(on_rle), Ok(off_rle))) = metapixels.get() {
@@ -122,7 +109,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
 
             if universe.with_untracked(|u| u.population()) != 0 {
                 let (x1, y1, x2, y2) = universe.with_untracked(|u| u.get_bounding_rect());
-                set_viewport.update(|vp| {
+                viewport.update(|vp| {
                     vp.fit_rect(
                         x1 as f64,
                         y1 as f64,
@@ -150,7 +137,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
     Effect::new(move |_| {
         is_ticking.track();
         if is_ticking.get() {
-            set_universe.update(|u| {
+            universe.update(|u| {
                 u.push_snapshot();
             });
         }
@@ -195,7 +182,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         if let Ok(points) = rle::iter_alive(&paste_rle.get_value()) {
             let (cx, cy) = cursor.with(|(x, y)| (x.floor() as i64, y.floor() as i64));
             let (width, height) = paste_size.get();
-            set_universe.update(|u| {
+            universe.update(|u| {
                 u.push_snapshot();
                 u.set_points(
                     &points.map(|(x, y)| (x + cx, y + cy)).collect::<Vec<_>>(),
@@ -233,7 +220,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         }
     };
     let toggle_cell = move |x: i64, y: i64| {
-        set_universe.update(|u| {
+        universe.update(|u| {
             let v = u.get(x, y);
             u.set(x, y, v ^ 1);
         });
@@ -272,7 +259,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                             if is_pasting.get() {
                                 paste();
                             } else if viewport.get().cell_size >= 5.0 {
-                                set_universe
+                                universe
                                     .update(|u| {
                                         u.push_snapshot();
                                     });
@@ -298,13 +285,13 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                 on:mousemove=move |ev| {
                     let (x, y) = offset_to_world(ev.offset_x(), ev.offset_y());
                     if let Some((px, py)) = pan.get_value() {
-                        set_viewport
+                        viewport
                             .update(|vp| {
                                 vp.origin.0 += px - x;
                                 vp.origin.1 += py - y;
                             });
                     } else {
-                        set_cursor.set((x, y));
+                        cursor.set((x, y));
                     }
                     if selection_start.get().is_some() && (ev.buttons() & 2) != 0 {
                         set_selection_end.set(Some((x.floor() as i64, y.floor() as i64)));
@@ -327,7 +314,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                     let (x, y) = offset_to_world(ev.offset_x(), ev.offset_y());
                     let factor = std::f64::consts::E
                         .powf(-ev.delta_y() * (if ev.ctrl_key() { 10.0 } else { 1.0 }) / 1000.0);
-                    set_viewport
+                    viewport
                         .update(|vp| {
                             vp.zoom_at(factor, x, y);
                         });
@@ -361,14 +348,14 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                             }
                         }
                         ("z", true) => {
-                            set_universe.update(|u| u.undo());
+                            universe.update(|u| u.undo());
                         }
                         ("Z", true) | ("y", true) => {
-                            set_universe.update(|u| u.redo());
+                            universe.update(|u| u.redo());
                         }
                         ("Delete", _) => {
                             if let Some((x1, y1, x2, y2)) = selection_rect.get() {
-                                set_universe
+                                universe
                                     .update(|u| {
                                         u.clear_rect(x1, y1, x2, y2);
                                     });
@@ -386,7 +373,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                     match ev.key().as_str() {
                         " " => {
                             if !did_pan.get_value() {
-                                set_is_ticking.update(|x| *x = !*x);
+                                is_ticking.update(|x| *x = !*x);
                             }
                         }
                         _ => {}
@@ -398,7 +385,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                     <Layer draw=move |c, raf_args| {
                         let now = raf_args.timestamp;
                         if is_ticking.get() && now - prev_tick.get_value() > 1000.0 / tps.get() {
-                            set_universe
+                            universe
                                 .update(|u| {
                                     u.step();
                                 });

@@ -52,7 +52,6 @@ pub fn Status() -> impl IntoView {
         cursor,
         canvas_size,
         viewport,
-        set_viewport,
         ..
     } = use_context::<GolContext>().unwrap();
     let ratio = move || {
@@ -87,7 +86,7 @@ pub fn Status() -> impl IntoView {
                 <Divider />
                 <Item on_press=Box::new(move || {
                     if universe.with(|u| u.population()) > 0 {
-                        set_viewport
+                        viewport
                             .update(|vp| {
                                 let (width, height) = canvas_size.get();
                                 let (x1, y1, x2, y2) = universe.with(|u| u.get_bounding_rect());

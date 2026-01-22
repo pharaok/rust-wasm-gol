@@ -8,11 +8,8 @@ use leptos::prelude::*;
 pub fn Controls() -> impl IntoView {
     let GolContext {
         universe,
-        set_universe,
         is_ticking,
-        set_is_ticking,
         tps,
-        set_tps,
         ..
     } = use_context::<GolContext>().unwrap();
 
@@ -22,7 +19,7 @@ pub fn Controls() -> impl IntoView {
                 variant=ButtonVariant::Icon
                 disabled=Signal::derive_local(move || universe.with(|u| !u.can_undo()))
                 on_press=move || {
-                    set_universe
+                    universe
                         .update(|u| {
                             u.undo();
                         });
@@ -34,7 +31,7 @@ pub fn Controls() -> impl IntoView {
                 variant=ButtonVariant::Icon
                 disabled=Signal::derive_local(move || universe.with(|u| !u.can_redo()))
                 on_press=move || {
-                    set_universe
+                    universe
                         .update(|u| {
                             u.redo();
                         });
@@ -47,9 +44,9 @@ pub fn Controls() -> impl IntoView {
                 variant=ButtonVariant::Icon
                 on_press=move || {
                     if universe.with(|u| u.step <= 0) {
-                        set_tps.update(|tps| *tps /= 2.0);
+                        tps.update(|tps| *tps /= 2.0);
                     } else {
-                        set_universe.update(|u| { u.step = (u.step - 1).max(0) })
+                        universe.update(|u| { u.step = (u.step - 1).max(0) })
                     }
                 }
             >
@@ -58,7 +55,7 @@ pub fn Controls() -> impl IntoView {
             <Button
                 variant=ButtonVariant::Icon
                 on_press=move || {
-                    set_is_ticking.update(|b| *b = !*b);
+                    is_ticking.update(|b| *b = !*b);
                 }
             >
                 {move || {
@@ -71,7 +68,7 @@ pub fn Controls() -> impl IntoView {
             </Button>
             <Button
                 variant=ButtonVariant::Icon
-                on_press=move || { set_universe.update(|u| { u.step() }) }
+                on_press=move || { universe.update(|u| { u.step() }) }
             >
                 <Icon icon=icondata::LuStepForward />
             </Button>
@@ -82,9 +79,9 @@ pub fn Controls() -> impl IntoView {
                 })
                 on_press=move || {
                     if tps.get() < 16.0 {
-                        set_tps.update(|tps| *tps *= 2.0);
+                        tps.update(|tps| *tps *= 2.0);
                     } else {
-                        set_universe.update(|u| { u.step = (u.step + 1).min(u.level() as i32 - 2) })
+                        universe.update(|u| { u.step = (u.step + 1).min(u.level() as i32 - 2) })
                     }
                 }
             >
