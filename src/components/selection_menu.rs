@@ -1,6 +1,6 @@
 use crate::{
     app::GolContext,
-    components::{Button, ButtonVariant, Divider, Icon, use_toast},
+    components::{Button, ButtonVariant, Divider, Icon, Surface, use_toast},
     parse::rle,
 };
 use leptos::prelude::*;
@@ -18,7 +18,7 @@ pub fn SelectionMenu() -> impl IntoView {
     let UseClipboardReturn { copy, .. } = use_clipboard();
     let push_toast = use_toast();
     view! {
-        <div class="bg-neutral-900 rounded-lg pointer-events-auto flex overflow-hidden">
+        <Surface class="pointer-events-auto flex">
             <Button
                 variant=ButtonVariant::Icon
                 on_press=move || {
@@ -87,6 +87,6 @@ pub fn SelectionMenu() -> impl IntoView {
         // >
         // <Icon icon=icondata::LuSave />
         // </Button>
-        </div>
+        </Surface>
     }
 }

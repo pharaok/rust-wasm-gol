@@ -4,7 +4,8 @@ use leptos_router::components::*;
 use tailwind_fuse::tw_merge;
 
 pub enum ButtonVariant {
-    Standard,
+    Primary,
+    Secondary,
     Icon,
 }
 
@@ -14,7 +15,7 @@ const ICON_CLASS: &str = "flex justify-center items-center p-2";
 pub fn Button(
     children: Children,
     #[prop(into, optional)] class: TextProp,
-    #[prop(default=ButtonVariant::Standard)] variant: ButtonVariant,
+    #[prop(default=ButtonVariant::Secondary)] variant: ButtonVariant,
     #[prop(into, optional)] on_press: Option<Callback<()>>,
     #[prop(into, default = false.into())] disabled: Signal<bool, LocalStorage>,
     #[prop(attrs)] attrs: Vec<AnyAttribute>,
@@ -25,7 +26,8 @@ pub fn Button(
                 tw_merge!(
                     "transition disabled:text-neutral-500 bg-neutral-900 enabled:hover:bg-neutral-800",
                     match variant {
-                        ButtonVariant::Standard => "p-2",
+                        ButtonVariant::Primary => "px-4 py-2 font-bold bg-white disabled:text-neutral-700 text-black enabled:hover:bg-neutral-400",
+                        ButtonVariant::Secondary => "px-4 py-2",
                         ButtonVariant::Icon => ICON_CLASS,
                     },
                     class.get().to_string()

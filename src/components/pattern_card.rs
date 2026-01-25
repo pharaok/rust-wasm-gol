@@ -1,6 +1,6 @@
 use crate::{
     app::fetch_pattern,
-    components::{Layer, Loading, Stage, Text},
+    components::{Layer, Loading, Stage, Surface, Text},
     draw,
     parse::rle::PatternMetadata,
 };
@@ -20,7 +20,7 @@ pub fn PatternCard(#[prop(into)] pattern: Signal<PatternMetadata, LocalStorage>)
     });
 
     view! {
-        <div class="rounded-md bg-neutral-800 w-64 p-2">
+        <Surface class="w-64 p-2 shrink-0">
             <A href=format!("/{}", pattern.get().path)>
                 <h2 class="text-lg font-bold w-full text-center truncate">{pattern.get().name}</h2>
                 <div class="relative w-full aspect-square bg-black">
@@ -51,6 +51,6 @@ pub fn PatternCard(#[prop(into)] pattern: Signal<PatternMetadata, LocalStorage>)
                 {pattern.get().owner.map(|o| view! { <p>{format!("Author: {}", o)}</p> })}
                 <p>{format!("Size: {}x{}", pattern.get().width, pattern.get().height)}</p>
             </div>
-        </div>
+        </Surface>
     }
 }

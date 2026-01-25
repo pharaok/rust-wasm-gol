@@ -1,5 +1,7 @@
 use leptos::{logging, portal::Portal, prelude::*};
 
+use crate::components::Surface;
+
 #[derive(Clone, Debug)]
 struct Toast {
     pub id: usize,
@@ -73,15 +75,15 @@ pub fn use_toast() -> Callback<String> {
 fn Toast(toast: Toast) -> impl IntoView {
     logging::log!("info: {}", toast.message);
     view! {
-        <div class=move || {
+        <Surface class=move || {
             format!(
-                "bg-neutral-900 rounded-lg px-4 py-2 {}",
+                "px-4 py-2 {}",
                 if toast.is_closing.get() {
                     "animate-fade-out"
                 } else {
                     "animate-slide-in-from-right"
                 },
             )
-        }>{toast.message}</div>
+        }>{toast.message}</Surface>
     }
 }

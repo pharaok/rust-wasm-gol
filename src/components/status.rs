@@ -3,20 +3,21 @@ use leptos::prelude::*;
 use leptos_router::hooks::use_params;
 
 #[component]
-pub fn Divider() -> impl IntoView {
+fn Divider() -> impl IntoView {
     view! { <div class="border-l border-neutral-700"></div> }
 }
 
 #[component]
-pub fn Item(
-    children: Children,
-    #[prop(optional)] on_press: Option<Box<dyn Fn()>>,
-) -> impl IntoView {
+fn Item(children: Children, #[prop(optional)] on_press: Option<Box<dyn Fn()>>) -> impl IntoView {
     view! {
         <span
             class=format!(
                 "px-4 pb-1 {}",
-                if on_press.is_some() { "cursor-pointer hover:bg-white/10" } else { "" },
+                if on_press.is_some() {
+                    "cursor-pointer hover:bg-white/10 pointer-events-auto"
+                } else {
+                    ""
+                },
             )
 
             on:click=move |_| {

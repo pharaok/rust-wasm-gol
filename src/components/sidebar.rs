@@ -1,7 +1,7 @@
 use leptos::portal::Portal;
 use leptos::prelude::*;
 
-use crate::components::Button;
+use crate::components::{Backdrop, Button, Surface};
 
 #[derive(Clone)]
 pub struct MenuContext {
@@ -10,30 +10,30 @@ pub struct MenuContext {
 }
 
 #[component]
-pub fn Menu(children: ChildrenFn) -> impl IntoView {
+pub fn Sidebar(children: ChildrenFn) -> impl IntoView {
     let (open, set_open) = signal_local(false);
     provide_context(MenuContext { open, set_open });
 
+    let children = StoredValue::new(children);
     view! {
         <Portal mount=document().body().unwrap()>
-            <div class=move || {
+            <Backdrop class=move || {
                 format!(
-                    "z-50 fixed inset-y-0 right-0 bg-neutral-900 transition-transform transition-300 {}",
+                    "z-30 fixed inset-y-0 right-0 rounded-none transition-transform duration-150 {}",
                     if open.get() { "translate-x-0" } else { "translate-x-full" },
                 )
-            }>{children()}</div>
-
+            }>{children.read_value()()}</Backdrop>
         </Portal>
     }
 }
 
 #[component]
-pub fn MenuTrigger(children: Children) -> impl IntoView {
+pub fn SidebarTrigger(children: Children) -> impl IntoView {
     let MenuContext { set_open, .. } = use_context::<MenuContext>().unwrap();
     view! {
-        <div class="absolute top-16 left-0 -translate-x-full [writing-mode:sideways-lr]">
+        <Surface class="absolute top-16 left-0 -translate-x-full [writing-mode:sideways-lr] rounded-r-none">
             <Button
-                class="rounded-l-md px-1"
+                class="px-1 rounded-l-md"
                 on_press=move || {
                     set_open.update(|b| *b = !*b);
                 }
@@ -41,6 +41,6 @@ pub fn MenuTrigger(children: Children) -> impl IntoView {
 
                 {children()}
             </Button>
-        </div>
+        </Surface>
     }
 }
