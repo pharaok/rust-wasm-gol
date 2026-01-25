@@ -9,17 +9,21 @@ use crate::{
     universe::{InsertMode, Universe},
 };
 use gloo_net::http::Request;
-use leptos::{ev::mousedown, html, prelude::*};
+use leptos::{ev::mousedown, html, logging, prelude::*};
 use leptos_router::hooks::*;
 use leptos_router::params::Params;
 use leptos_use::{UseClipboardReturn, use_clipboard, use_document, use_event_listener};
 
-#[derive(Params, PartialEq)]
+#[derive(Params, PartialEq, Clone)]
 pub struct GolParams {
     pub name: Option<String>,
 }
+#[derive(Params, PartialEq, Clone)]
+pub struct GolQuery {
+    pub rle: Option<String>,
+}
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct GolContext {
     pub universe: RwSignal<Universe, LocalStorage>,
     pub canvas_size: ReadSignal<(u32, u32), LocalStorage>,
@@ -28,6 +32,30 @@ pub struct GolContext {
     pub selection_rect: Signal<Option<(i64, i64, i64, i64)>, LocalStorage>,
     pub is_ticking: RwSignal<bool, LocalStorage>,
     pub tps: RwSignal<f64, LocalStorage>,
+}
+
+pub fn use_fit_universe() {
+    let GolContext {
+        universe,
+        viewport,
+        canvas_size,
+        ..
+    } = use_context::<GolContext>().unwrap();
+    let (canvas_width, canvas_height) = canvas_size.get();
+    if universe.with(|u| u.population()) != 0 {
+        let (x1, y1, x2, y2) = universe.with(|u| u.get_bounding_rect());
+        viewport.update(|vp| {
+            vp.fit_rect(
+                x1 as f64,
+                y1 as f64,
+                (x2 - x1 + 1) as f64,
+                (y2 - y1 + 1) as f64,
+                canvas_width as f64,
+                canvas_height as f64,
+            );
+            vp.zoom_at_center(0.8, canvas_width as f64, canvas_height as f64);
+        });
+    }
 }
 
 pub type PatternResult = Result<String, ()>;
@@ -59,7 +87,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         Some((sx.min(ex), sy.min(ey), sx.max(ex), sy.max(ey)))
     });
 
-    provide_context(GolContext {
+    let ctx = GolContext {
         universe,
         canvas_size,
         viewport,
@@ -67,11 +95,13 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         selection_rect,
         is_ticking,
         tps,
-    });
+    };
+    provide_context(ctx);
 
     let push_toast = use_toast();
 
     let params = use_params::<GolParams>();
+    let query = use_query::<GolQuery>();
     let pattern_name =
         move || params.with(|p| p.as_ref().unwrap().name.clone().unwrap_or_default());
     let pattern_rle = LocalResource::new(move || fetch_pattern(pattern_name()));
@@ -88,9 +118,10 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         if did_fit.get_value() || canvas_width == 0 || canvas_height == 0 {
             return;
         }
-        // pattern_rle will never actually be Some(Err) because
-        // the server will always return 200 OK since this is a SPA
-        if let Some(Ok(rle)) = pattern_rle.get()
+        query.track();
+        let param_rle = pattern_rle.get().and_then(Result::ok);
+        let query_rle = query.with(|q| q.as_ref().ok().and_then(|q| q.rle.to_owned()));
+        if let Some(rle) = param_rle.or(query_rle)
             && rle::parse_metadata(&rle, "", "").is_ok()
         {
             universe.update(|u| {
@@ -107,20 +138,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                 }
             });
 
-            if universe.with_untracked(|u| u.population()) != 0 {
-                let (x1, y1, x2, y2) = universe.with_untracked(|u| u.get_bounding_rect());
-                viewport.update(|vp| {
-                    vp.fit_rect(
-                        x1 as f64,
-                        y1 as f64,
-                        (x2 - x1 + 1) as f64,
-                        (y2 - y1 + 1) as f64,
-                        canvas_width as f64,
-                        canvas_height as f64,
-                    );
-                    vp.zoom_at_center(0.8, canvas_width as f64, canvas_height as f64);
-                });
-            }
+            use_fit_universe();
         }
         did_fit.set_value(true);
     });
@@ -234,7 +252,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         let el = event_target::<web_sys::HtmlDivElement>(&ev);
         let tag = el.tag_name();
 
-        if tag != "INPUT" {
+        if tag != "INPUT" && tag != "TEXTAREA" {
             ev.prevent_default();
         }
     });

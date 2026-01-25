@@ -1,9 +1,11 @@
-use crate::{
-    app::{GolContext, GolParams},
-    components::Divider,
-};
+use crate::app::{GolContext, GolParams, use_fit_universe};
 use leptos::prelude::*;
 use leptos_router::hooks::use_params;
+
+#[component]
+pub fn Divider() -> impl IntoView {
+    view! { <div class="border-l border-neutral-700"></div> }
+}
 
 #[component]
 pub fn Item(
@@ -50,7 +52,6 @@ pub fn Status() -> impl IntoView {
     let GolContext {
         universe,
         cursor,
-        canvas_size,
         viewport,
         ..
     } = use_context::<GolContext>().unwrap();
@@ -85,22 +86,7 @@ pub fn Status() -> impl IntoView {
                 <Item>{move || format!("Pop: {}", universe.with(|u| u.population()))}</Item>
                 <Divider />
                 <Item on_press=Box::new(move || {
-                    if universe.with(|u| u.population()) > 0 {
-                        viewport
-                            .update(|vp| {
-                                let (width, height) = canvas_size.get();
-                                let (x1, y1, x2, y2) = universe.with(|u| u.get_bounding_rect());
-                                vp.fit_rect(
-                                    y1 as f64,
-                                    x1 as f64,
-                                    (x2 - x1 + 1) as f64,
-                                    (y2 - x1 + 1) as f64,
-                                    width as f64,
-                                    height as f64,
-                                );
-                                vp.zoom_at_center(0.8, width as f64, height as f64);
-                            });
-                    }
+                    use_fit_universe();
                 })>{ratio}</Item>
                 <Divider />
                 <Item>

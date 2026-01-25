@@ -26,6 +26,7 @@ pub fn SelectionMenu() -> impl IntoView {
                         let mut rng = rand::rng();
                         universe
                             .update(|u| {
+                                u.push_snapshot();
                                 for y in y1..=y2 {
                                     for x in x1..=x2 {
                                         u.set(x, y, rng.random_bool(0.5) as u8);
@@ -45,6 +46,7 @@ pub fn SelectionMenu() -> impl IntoView {
                     if let Some((x1, y1, x2, y2)) = selection_rect.get() {
                         universe
                             .update(|u| {
+                                u.push_snapshot();
                                 u.clear_rect(x1, y1, x2, y2);
                             });
                     }
@@ -75,16 +77,16 @@ pub fn SelectionMenu() -> impl IntoView {
             >
                 <Icon icon=icondata::LuCopy />
             </Button>
-            <Divider />
-            <Button
-                variant=ButtonVariant::Icon
-                disabled=true
-                on_press=move || {
-                    unimplemented!("");
-                }
-            >
-                <Icon icon=icondata::LuSave />
-            </Button>
+        // <Divider />
+        // <Button
+        // variant=ButtonVariant::Icon
+        // disabled=true
+        // on_press=move || {
+        // unimplemented!("");
+        // }
+        // >
+        // <Icon icon=icondata::LuSave />
+        // </Button>
         </div>
     }
 }

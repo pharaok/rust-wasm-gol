@@ -68,7 +68,13 @@ pub fn Controls() -> impl IntoView {
             </Button>
             <Button
                 variant=ButtonVariant::Icon
-                on_press=move || { universe.update(|u| { u.step() }) }
+                on_press=move || {
+                    universe
+                        .update(|u| {
+                            u.push_snapshot();
+                            u.step();
+                        })
+                }
             >
                 <Icon icon=icondata::LuStepForward />
             </Button>

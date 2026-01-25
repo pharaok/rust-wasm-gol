@@ -25,7 +25,7 @@ pub fn SelectionOverlay(#[prop(into)] is_open: Signal<bool, LocalStorage>) -> im
                 }
             }
         >
-            <Show when=is_open fallback=|| view! {}>
+            <Show when=is_open>
                 <SelectionMenu />
             </Show>
         </div>
