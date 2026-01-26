@@ -125,7 +125,6 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         did_fit.set_value(false);
     });
     Effect::new(move |_| {
-        logging::log!("here");
         let (canvas_width, canvas_height) = canvas_size.get();
         let param_rle = pattern_rle.get().and_then(Result::ok);
         let query_rle = query.with(|q| q.as_ref().ok().and_then(|q| q.rle.to_owned()));

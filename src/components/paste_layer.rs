@@ -1,4 +1,4 @@
-use leptos::prelude::*;
+use leptos::{logging, prelude::*};
 
 use crate::{app::GolContext, components::Layer, draw, universe::Universe};
 
@@ -24,11 +24,16 @@ pub fn PasteLayer() -> impl IntoView {
     } = use_context::<ClipboardContext>().unwrap();
 
     let is_paste_canvas_dirty = StoredValue::new_local(false);
+    let cursor_floor = Memo::new(move |_| (cursor.get().0.floor(), cursor.get().1.floor()));
+
     Effect::new(move |_| {
-        is_pasting.track();
+        if !is_pasting.get() {
+            return;
+        }
+        // only track signals if we are pasting
         paste_size.track();
         paste_universe.track();
-        cursor.track();
+        cursor_floor.track();
         canvas_size.track();
         viewport.track();
         is_paste_canvas_dirty.set_value(true);
@@ -42,12 +47,14 @@ pub fn PasteLayer() -> impl IntoView {
             if !is_pasting.get() {
                 c.clear();
                 c.draw();
+                is_paste_canvas_dirty.set_value(false);
                 return;
             }
             let (width, height) = paste_size.get();
             let mut vp = viewport.get();
-            vp.origin.0 -= cursor.get().0.floor();
-            vp.origin.1 -= cursor.get().1.floor();
+            let (cx, cy) = cursor_floor.get();
+            vp.origin.0 -= cx;
+            vp.origin.1 -= cy;
             c.clear();
             c.fill_rect_with_viewport(&vp, 0.0, 0.0, width as f64, height as f64, 0x00FFFF3F);
             paste_universe
