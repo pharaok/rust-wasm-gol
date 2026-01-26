@@ -1,7 +1,15 @@
-use crate::app::{GolContext, use_fit_universe};
+use crate::{
+    app::{GolContext, use_fit_universe},
+    components::Dialog,
+};
 use leptos::{html, prelude::*};
 use leptos_use::{UseTimeoutFnReturn, use_timeout_fn};
 use tailwind_fuse::tw_merge;
+
+#[component]
+fn PatternInfo() -> impl IntoView {
+    view! { <div></div> }
+}
 
 #[component]
 fn Divider() -> impl IntoView {
@@ -80,7 +88,7 @@ pub fn Status() -> impl IntoView {
         ..
     } = use_timeout_fn(
         |_| {
-            todo!("info");
+            // TODO: display info
         },
         300.0,
     );

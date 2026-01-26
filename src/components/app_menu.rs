@@ -6,34 +6,13 @@ use crate::{
     },
     parse::rle,
     universe::InsertMode,
+    utils::{base64_gz_from_str, download_text_file, str_from_base64_gz},
 };
-use js_sys::wasm_bindgen::{JsCast, JsValue};
-use leptos::{prelude::*, task::spawn_local};
+use leptos::{logging, prelude::*, task::spawn_local};
+use leptos_router::hooks::use_url;
+use leptos_use::{UseClipboardReturn, use_clipboard};
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{Blob, File, HtmlAnchorElement, Url};
-
-pub fn download_text_file(filename: &str, content: &str) {
-    let document = window().document().unwrap();
-    let body = document.body().unwrap();
-
-    let parts = js_sys::Array::of1(&JsValue::from_str(content));
-    let blob = Blob::new_with_str_sequence(parts.as_ref()).expect("failed to create blob");
-
-    let url = Url::create_object_url_with_blob(&blob).expect("failed to create object URL");
-
-    let a = document
-        .create_element("a")
-        .expect("failed to create anchor")
-        .dyn_into::<HtmlAnchorElement>()
-        .expect("failed to cast to HtmlAnchorElement");
-
-    a.set_href(&url);
-    a.set_download(filename);
-    body.append_child(&a).unwrap();
-    a.click();
-    body.remove_child(&a).unwrap();
-    Url::revoke_object_url(&url).unwrap();
-}
+use web_sys::File;
 
 #[component]
 pub fn ImportForm(#[prop(into)] close: Callback<()>) -> impl IntoView {
@@ -50,7 +29,7 @@ pub fn ImportForm(#[prop(into)] close: Callback<()>) -> impl IntoView {
                     set_rle.set(content);
                 }
                 Err(err) => logging.error(&err.as_string().unwrap_or_default()),
-            }
+            };
         });
     };
     let (error_text, set_error_text) = signal("".to_owned());
@@ -131,6 +110,10 @@ pub fn AppMenu() -> impl IntoView {
     let (is_import_open, set_is_import_open) = signal(false);
     let GolContext { universe, name, .. } = use_context::<GolContext>().unwrap();
 
+    let url = use_url();
+    let UseClipboardReturn { copy, .. } = use_clipboard();
+    let copy = StoredValue::new(copy);
+
     view! {
         <PopoverTrigger is_open=is_open set_is_open=set_is_open>
             <Surface class="overflow-hidden">
@@ -177,6 +160,21 @@ pub fn AppMenu() -> impl IntoView {
                             <ImportForm close=move || set_is_import_open.set(false) />
                         </Dialog>
                     </PopoverTrigger>
+
+                    <MenuButton on_press=move || {
+                        let rle = universe
+                            .with(|u| {
+                                let (x1, y1, x2, y2) = u.get_bounding_rect();
+                                rle::from_iter(u.iter_alive(), x1, y1, x2, y2)
+                            });
+                        spawn_local(async move {
+                            let base64 = base64_gz_from_str(&rle).await.unwrap();
+                            copy.read_value()(&format!("{}/#{}", url.get().origin(), base64));
+                        });
+                    }>
+                        <Icon icon=icondata::LuShare2 />
+                        Share
+                    </MenuButton>
 
                     <Link
                         variant=LinkVariant::Icon

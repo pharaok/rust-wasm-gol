@@ -27,6 +27,7 @@ pub fn PasteLayer() -> impl IntoView {
     let cursor_floor = Memo::new(move |_| (cursor.get().0.floor(), cursor.get().1.floor()));
 
     Effect::new(move |_| {
+        is_paste_canvas_dirty.set_value(true);
         if !is_pasting.get() {
             return;
         }
@@ -36,7 +37,6 @@ pub fn PasteLayer() -> impl IntoView {
         cursor_floor.track();
         canvas_size.track();
         viewport.track();
-        is_paste_canvas_dirty.set_value(true);
     });
 
     view! {

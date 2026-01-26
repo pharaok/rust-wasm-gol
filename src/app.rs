@@ -7,6 +7,7 @@ use crate::{
     meta::use_metapixels,
     parse::rle::{self, PatternMetadata},
     universe::{InsertMode, Universe},
+    utils::str_from_base64_gz,
 };
 use gloo_net::http::Request;
 use leptos::{ev::mousedown, html, logging, prelude::*};
@@ -17,10 +18,6 @@ use leptos_use::{UseClipboardReturn, use_clipboard, use_document, use_event_list
 #[derive(Params, PartialEq, Clone)]
 pub struct GolParams {
     pub name: Option<String>,
-}
-#[derive(Params, PartialEq, Clone)]
-pub struct GolQuery {
-    pub rle: Option<String>,
 }
 
 #[derive(Clone, Copy)]
@@ -72,8 +69,8 @@ pub async fn fetch_pattern(name: String) -> PatternResult {
 
 #[component]
 pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
+    let location = use_location();
     let params = use_params::<GolParams>();
-    let query = use_query::<GolQuery>();
 
     let universe = RwSignal::new_local(Universe::with_size_and_arena_capacity(60, 1 << 16));
     let (canvas_size, set_canvas_size) = signal_local((0, 0));
@@ -124,15 +121,23 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         pattern_rle.track();
         did_fit.set_value(false);
     });
+    let hash_rle = LocalResource::new(move || {
+        let hash = location.hash.get();
+        async move {
+            if hash.is_empty() {
+                return None;
+            }
+            str_from_base64_gz(&hash[1..]).await.ok()
+        }
+    });
     Effect::new(move |_| {
         let (canvas_width, canvas_height) = canvas_size.get();
         let param_rle = pattern_rle.get().and_then(Result::ok);
-        let query_rle = query.with(|q| q.as_ref().ok().and_then(|q| q.rle.to_owned()));
 
         if did_fit.get_value() || canvas_width == 0 || canvas_height == 0 {
             return;
         }
-        if let Some(rle) = param_rle.or(query_rle)
+        if let Some(rle) = param_rle.or(hash_rle.get().unwrap())
             && rle::parse_metadata(&rle, "", "").is_ok()
         {
             universe.update(|u| {
