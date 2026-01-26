@@ -9,7 +9,7 @@ use crate::{
     universe::{InsertMode, Universe},
 };
 use gloo_net::http::Request;
-use leptos::{ev::mousedown, html, prelude::*};
+use leptos::{ev::mousedown, html, logging, prelude::*};
 use leptos_router::hooks::*;
 use leptos_router::params::Params;
 use leptos_use::{UseClipboardReturn, use_clipboard, use_document, use_event_listener};
@@ -125,13 +125,14 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         did_fit.set_value(false);
     });
     Effect::new(move |_| {
+        logging::log!("here");
         let (canvas_width, canvas_height) = canvas_size.get();
+        let param_rle = pattern_rle.get().and_then(Result::ok);
+        let query_rle = query.with(|q| q.as_ref().ok().and_then(|q| q.rle.to_owned()));
+
         if did_fit.get_value() || canvas_width == 0 || canvas_height == 0 {
             return;
         }
-        query.track();
-        let param_rle = pattern_rle.get().and_then(Result::ok);
-        let query_rle = query.with(|q| q.as_ref().ok().and_then(|q| q.rle.to_owned()));
         if let Some(rle) = param_rle.or(query_rle)
             && rle::parse_metadata(&rle, "", "").is_ok()
         {
@@ -150,8 +151,8 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
             });
 
             use_fit_universe();
+            did_fit.set_value(true);
         }
-        did_fit.set_value(true);
     });
 
     let is_canvas_dirty = StoredValue::new_local(true);

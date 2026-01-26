@@ -44,6 +44,7 @@ pub fn TextArea(
 #[component]
 pub fn FileInput(
     #[prop(into)] on_change: Callback<File>,
+    #[prop(optional, into)] accept: String,
     #[prop(attrs)] attrs: Vec<AnyAttribute>,
 ) -> impl IntoView {
     let input_ref = NodeRef::<html::Input>::new();
@@ -61,6 +62,7 @@ pub fn FileInput(
                     }
                 }
                 class="hidden"
+                accept={accept}
                 {..attrs}
             />
             <Button

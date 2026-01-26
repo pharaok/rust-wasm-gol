@@ -71,8 +71,6 @@ pub fn ImportForm(#[prop(into)] close: Callback<()>) -> impl IntoView {
             }
         }>
             <div class="flex flex-col gap-2">
-                <h2 class="text-lg font-bold text-center">IMPORT PATTERN</h2>
-                <div class="border-t border-neutral-800 w-full" />
                 <p>Supports RLE file format.</p>
                 <div class="flex flex-col gap-2">
                     <TextArea
@@ -83,7 +81,7 @@ pub fn ImportForm(#[prop(into)] close: Callback<()>) -> impl IntoView {
                         attr:rows=8
                         prop:value=move || rle.get()
                     />
-                    <FileInput on_change=on_file_change />
+                    <FileInput on_change=on_file_change accept=".rle,.txt" />
                     {move || {
                         if !error_text.get().is_empty() {
                             view! {
@@ -174,6 +172,8 @@ pub fn AppMenu() -> impl IntoView {
                             Import
                         </MenuButton>
                         <Dialog>
+                            <h2 class="text-lg font-bold text-center">IMPORT PATTERN</h2>
+                            <div class="border-t border-neutral-800 w-full" />
                             <ImportForm close=move || set_is_import_open.set(false) />
                         </Dialog>
                     </PopoverTrigger>
