@@ -1,6 +1,6 @@
-use crate::app::{GolContext, GolParams, use_fit_universe};
+use crate::app::{GolContext, use_fit_universe};
 use leptos::prelude::*;
-use leptos_router::hooks::use_params;
+use leptos_use::{UseTimeoutFnReturn, use_timeout_fn};
 
 #[component]
 fn Divider() -> impl IntoView {
@@ -8,11 +8,14 @@ fn Divider() -> impl IntoView {
 }
 
 #[component]
-fn Item(children: Children, #[prop(optional)] on_press: Option<Box<dyn Fn()>>) -> impl IntoView {
+fn Item(
+    children: Children,
+    #[prop(into, optional)] on_press: Option<Callback<()>>,
+) -> impl IntoView {
     view! {
         <span
             class=format!(
-                "px-4 pb-1 {}",
+                "px-4 py-1 {}",
                 if on_press.is_some() {
                     "cursor-pointer hover:bg-white/10 pointer-events-auto"
                 } else {
@@ -22,7 +25,7 @@ fn Item(children: Children, #[prop(optional)] on_press: Option<Box<dyn Fn()>>) -
 
             on:click=move |_| {
                 if let Some(on_press) = &on_press {
-                    on_press()
+                    on_press.run(());
                 }
             }
         >
@@ -52,6 +55,7 @@ fn metric_string(n: f64) -> String {
 pub fn Status() -> impl IntoView {
     let GolContext {
         universe,
+        name,
         cursor,
         viewport,
         ..
@@ -65,19 +69,54 @@ pub fn Status() -> impl IntoView {
         }
     };
 
-    let params = use_params::<GolParams>();
-    let pattern_name = move || {
-        params.with(|p| {
-            p.as_ref()
-                .map(|p| p.name.clone().unwrap_or_default())
-                .unwrap_or_default()
-        })
-    };
+    let (is_renaming, set_is_renaming) = signal(false);
+    let UseTimeoutFnReturn {
+        start,
+        stop,
+        is_pending,
+        ..
+    } = use_timeout_fn(
+        |_| {
+            todo!("info");
+        },
+        300.0,
+    );
 
     view! {
-        <div class="flex flex-wrap justify-between text-sm">
-            <div>
-                <Item>{move || pattern_name}</Item>
+        <div class="flex flex-wrap justify-between items-center text-sm">
+            <div
+                class="cursor-pointer pointer-events-auto"
+                on:click=move |_| {
+                    if is_pending.get() {
+                        stop();
+                        set_is_renaming.set(true);
+                    } else {
+                        start(());
+                    }
+                }
+            >
+                {move || {
+                    if is_renaming.get() {
+                        view! {
+                            <input
+                                class="bg-transparent text-white px-4 py-1"
+                                on:input=move |e| {
+                                    name.set(event_target_value(&e));
+                                }
+                                on:blur=move |_| {
+                                    set_is_renaming.set(false);
+                                }
+                                prop:value=name.get()
+                            />
+                        }
+                            .into_any()
+                    } else {
+
+                        view! { <Item on_press=move || {}>{move || name.get()}</Item> }
+                            .into_any()
+                    }
+                }}
+
             </div>
             <div class="ml-auto inline-flex flex-wrap">
                 <Item>{move || format!("Step: {}", 1i64 << universe.with(|u| u.step))}</Item>
@@ -86,9 +125,9 @@ pub fn Status() -> impl IntoView {
                 <Divider />
                 <Item>{move || format!("Pop: {}", universe.with(|u| u.population()))}</Item>
                 <Divider />
-                <Item on_press=Box::new(move || {
+                <Item on_press=move || {
                     use_fit_universe();
-                })>{ratio}</Item>
+                }>{ratio}</Item>
                 <Divider />
                 <Item>
                     {move || {

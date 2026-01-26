@@ -6,9 +6,17 @@ use web_sys::HtmlDivElement;
 #[derive(Clone, Copy)]
 pub enum PopoverPlacement {
     Bottom,
+    BottomStart,
+    BottomEnd,
     Left,
+    LeftStart,
+    LeftEnd,
     Right,
+    RightStart,
+    RightEnd,
     Top,
+    TopStart,
+    TopEnd,
 }
 
 #[derive(Clone)]
@@ -24,18 +32,48 @@ pub fn popover_pos(trigger_el: HtmlDivElement, placement: PopoverPlacement) -> (
         rect.left() + rect.width() / 2.0,
         rect.top() + rect.height() / 2.0,
     );
-    let (offset_x, offset_y) = match placement {
-        PopoverPlacement::Bottom => (0.0, rect.height() / 2.0),
-        PopoverPlacement::Left => (-rect.width() / 2.0, 0.0),
-        PopoverPlacement::Right => (rect.width() / 2.0, 0.0),
-        PopoverPlacement::Top => (0.0, -rect.height() / 2.0),
+    let offset_x = match placement {
+        PopoverPlacement::BottomStart
+        | PopoverPlacement::Left
+        | PopoverPlacement::LeftStart
+        | PopoverPlacement::LeftEnd
+        | PopoverPlacement::TopStart => -rect.width() / 2.0,
+        PopoverPlacement::BottomEnd
+        | PopoverPlacement::Right
+        | PopoverPlacement::RightStart
+        | PopoverPlacement::RightEnd
+        | PopoverPlacement::TopEnd => rect.width() / 2.0,
+        _ => 0.0,
+    };
+    let offset_y = match placement {
+        PopoverPlacement::LeftStart
+        | PopoverPlacement::Top
+        | PopoverPlacement::TopStart
+        | PopoverPlacement::TopEnd
+        | PopoverPlacement::RightStart => -rect.height() / 2.0,
+        PopoverPlacement::LeftEnd
+        | PopoverPlacement::Bottom
+        | PopoverPlacement::BottomStart
+        | PopoverPlacement::BottomEnd
+        | PopoverPlacement::RightEnd => rect.height() / 2.0,
+        _ => 0.0,
     };
     (center_x + offset_x, center_y + offset_y)
 }
 
 #[component]
-pub fn PopoverTrigger(children: Children) -> impl IntoView {
-    let (is_open, set_is_open) = signal(false);
+pub fn PopoverTrigger(
+    children: Children,
+    #[prop(optional, into)] is_open: Option<ReadSignal<bool>>,
+    #[prop(optional, into)] set_is_open: Option<WriteSignal<bool>>,
+) -> impl IntoView {
+    let is_controlled = is_open.is_some();
+    let (is_open, set_is_open) = if let (Some(is_open), Some(set_is_open)) = (is_open, set_is_open)
+    {
+        (is_open, set_is_open)
+    } else {
+        signal(false)
+    };
     let trigger_ref = NodeRef::<html::Div>::new();
     provide_context(PopoverContext {
         is_open,
@@ -47,7 +85,9 @@ pub fn PopoverTrigger(children: Children) -> impl IntoView {
         <div
             node_ref=trigger_ref
             on:click=move |_| {
-                set_is_open.set(true);
+                if !is_controlled {
+                    set_is_open.set(true);
+                }
             }
         >
             {children()}
@@ -81,19 +121,42 @@ pub fn Popover(
                 <div
                     class=move || {
                         tw_merge!(
-                            "z-50 absolute",
-                            match placement {
-                                PopoverPlacement::Bottom => "-translate-x-1/2",
-                                PopoverPlacement::Left=> "-translate-x-full -translate-y-1/2",
-                                PopoverPlacement::Right => "-translate-y-1/2",
-                                PopoverPlacement::Top => "-translate-x-1/2 -translate-y-full",
-                            },
+                            "z-40 absolute",
                             class.read_value().get().to_string()
                         )
                     }
                     style:inset=move || {
                         let (x, y) = pos.get();
                         format!("{}px auto auto {}px", y, x)
+                    }
+                    style:transform=move || {
+                        let translate_x = match placement {
+                            PopoverPlacement::TopStart
+                            | PopoverPlacement::Right
+                            | PopoverPlacement::RightStart
+                            | PopoverPlacement::RightEnd
+                            | PopoverPlacement::BottomStart => "0",
+                            PopoverPlacement::TopEnd
+                            | PopoverPlacement::Left
+                            | PopoverPlacement::LeftStart
+                            | PopoverPlacement::LeftEnd
+                            | PopoverPlacement::BottomEnd => "-100%",
+                            _ => "-50%",
+                        };
+                        let translate_y = match placement {
+                            PopoverPlacement::LeftStart
+                            | PopoverPlacement::Bottom
+                            | PopoverPlacement::BottomStart
+                            | PopoverPlacement::BottomEnd
+                            | PopoverPlacement::RightStart => "0",
+                            PopoverPlacement::LeftEnd
+                            | PopoverPlacement::Top
+                            | PopoverPlacement::TopStart
+                            | PopoverPlacement::TopEnd
+                            | PopoverPlacement::RightEnd => "-100%",
+                            _ => "-50%",
+                        };
+                        format!("translate({}, {})", translate_x, translate_y)
                     }
                 >
                     {children.read_value()()}

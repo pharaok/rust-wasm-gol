@@ -17,7 +17,7 @@ pub fn Button(
     #[prop(into, optional)] class: TextProp,
     #[prop(default=ButtonVariant::Secondary)] variant: ButtonVariant,
     #[prop(into, optional)] on_press: Option<Callback<()>>,
-    #[prop(into, default = false.into())] disabled: Signal<bool, LocalStorage>,
+    #[prop(into, default=false.into())] disabled: Signal<bool, LocalStorage>,
     #[prop(attrs)] attrs: Vec<AnyAttribute>,
 ) -> impl IntoView {
     view! {

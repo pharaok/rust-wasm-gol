@@ -22,7 +22,9 @@ pub fn PatternCard(#[prop(into)] pattern: Signal<PatternMetadata, LocalStorage>)
     view! {
         <Surface class="w-64 p-2 shrink-0">
             <A href=format!("/{}", pattern.get().path)>
-                <h2 class="text-lg font-bold w-full text-center truncate">{pattern.get().name}</h2>
+                <h2 class="text-lg font-bold w-full text-center truncate mb-1">
+                    {pattern.get().name}
+                </h2>
                 <div class="relative w-full aspect-square bg-black">
                     <Show when=move || !is_ready.get()>
                         <div class="absolute inset-0 z-10 flex justify-center items-center">

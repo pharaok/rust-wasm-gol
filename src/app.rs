@@ -1,7 +1,7 @@
 use crate::{
     components::{
-        ClipboardContext, Controls, Layer, PasteLayer, SelectionLayer, SelectionOverlay, Stage,
-        Status, use_toast,
+        AppMenu, ClipboardContext, Controls, Layer, PasteLayer, SelectionLayer, SelectionOverlay,
+        Stage, Status, use_toast,
     },
     draw::{self, Viewport},
     meta::use_metapixels,
@@ -9,7 +9,7 @@ use crate::{
     universe::{InsertMode, Universe},
 };
 use gloo_net::http::Request;
-use leptos::{ev::mousedown, html, logging, prelude::*};
+use leptos::{ev::mousedown, html, prelude::*};
 use leptos_router::hooks::*;
 use leptos_router::params::Params;
 use leptos_use::{UseClipboardReturn, use_clipboard, use_document, use_event_listener};
@@ -26,6 +26,7 @@ pub struct GolQuery {
 #[derive(Clone, Copy)]
 pub struct GolContext {
     pub universe: RwSignal<Universe, LocalStorage>,
+    pub name: RwSignal<String, LocalStorage>,
     pub canvas_size: ReadSignal<(u32, u32), LocalStorage>,
     pub viewport: RwSignal<Viewport, LocalStorage>,
     pub cursor: RwSignal<(f64, f64), LocalStorage>,
@@ -70,6 +71,9 @@ pub async fn fetch_pattern(name: String) -> PatternResult {
 
 #[component]
 pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
+    let params = use_params::<GolParams>();
+    let query = use_query::<GolQuery>();
+
     let universe = RwSignal::new_local(Universe::with_size_and_arena_capacity(60, 1 << 16));
     let (canvas_size, set_canvas_size) = signal_local((0, 0));
     let viewport = RwSignal::new_local(Viewport::new());
@@ -86,9 +90,17 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         let ((sx, sy), (ex, ey)) = (selection_start.get()?, selection_end.get()?);
         Some((sx.min(ex), sy.min(ey), sx.max(ex), sy.max(ey)))
     });
+    let name = RwSignal::new_local({
+        params.with(|p| {
+            p.as_ref()
+                .map(|p| p.name.clone().unwrap_or_default())
+                .unwrap_or_default()
+        })
+    });
 
     let ctx = GolContext {
         universe,
+        name,
         canvas_size,
         viewport,
         cursor,
@@ -100,8 +112,6 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
 
     let push_toast = use_toast();
 
-    let params = use_params::<GolParams>();
-    let query = use_query::<GolQuery>();
     let pattern_name =
         move || params.with(|p| p.as_ref().unwrap().name.clone().unwrap_or_default());
     let pattern_rle = LocalResource::new(move || fetch_pattern(pattern_name()));
@@ -253,6 +263,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
         let tag = el.tag_name();
 
         if tag != "INPUT" && tag != "TEXTAREA" {
+            let _ = div_ref.get().unwrap().focus();
             ev.prevent_default();
         }
     });
@@ -419,6 +430,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
                             });
                         is_canvas_dirty.set_value(false);
                     } />
+                    // FIX: idle performance
                     <SelectionLayer />
                     <PasteLayer />
                 </Stage>
@@ -426,9 +438,12 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
             <SelectionOverlay is_open=is_selection_menu_shown />
             <div
                 on:click=|e| e.stop_propagation()
-                class="flex flex-col z-10 absolute bottom-0 inset-x-0 gap-4"
+                class="flex flex-col z-10 absolute bottom-0 inset-x-0 gap-4 pointer-events-none"
             >
-                <div class="flex justify-center">
+                <div class="relative flex justify-center">
+                    <div class="absolute left-4 pointer-events-auto">
+                        <AppMenu />
+                    </div>
                     <Controls />
                 </div>
                 <Status />

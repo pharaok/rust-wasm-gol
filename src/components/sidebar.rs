@@ -19,7 +19,7 @@ pub fn Sidebar(children: ChildrenFn) -> impl IntoView {
         <Portal mount=document().body().unwrap()>
             <Backdrop class=move || {
                 format!(
-                    "z-30 fixed inset-y-0 right-0 rounded-none transition-transform duration-150 {}",
+                    "z-40 fixed inset-y-0 right-0 rounded-none transition-transform duration-150 {}",
                     if open.get() { "translate-x-0" } else { "translate-x-full" },
                 )
             }>{children.read_value()()}</Backdrop>

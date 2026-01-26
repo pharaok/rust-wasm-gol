@@ -18,7 +18,7 @@ pub fn SelectionMenu() -> impl IntoView {
     let UseClipboardReturn { copy, .. } = use_clipboard();
     let push_toast = use_toast();
     view! {
-        <Surface class="pointer-events-auto flex">
+        <Surface class="pointer-events-auto flex overflow-hidden">
             <Button
                 variant=ButtonVariant::Icon
                 on_press=move || {

@@ -1,11 +1,14 @@
 use leptos::prelude::*;
 
+pub mod app_menu;
 pub mod backdrop;
 pub mod button;
 pub mod canvas;
 pub mod controls;
+pub mod dialog;
 pub mod input;
 pub mod loading;
+pub mod menu;
 pub mod paste_overlay;
 pub mod pattern_card;
 pub mod pattern_library;
@@ -20,12 +23,15 @@ pub mod text;
 pub mod toast;
 pub mod tooltip;
 
+pub use crate::components::app_menu::*;
 pub use crate::components::backdrop::*;
 pub use crate::components::button::*;
 pub use crate::components::canvas::*;
 pub use crate::components::controls::*;
+pub use crate::components::dialog::*;
 pub use crate::components::input::*;
 pub use crate::components::loading::*;
+pub use crate::components::menu::*;
 pub use crate::components::paste_overlay::*;
 pub use crate::components::pattern_card::*;
 pub use crate::components::pattern_library::*;
