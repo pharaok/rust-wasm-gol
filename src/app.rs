@@ -35,6 +35,7 @@ pub struct GolContext {
     pub tps: RwSignal<f64, LocalStorage>,
 }
 
+// TODO: impl GolContext
 pub fn use_fit_universe() {
     let GolContext {
         universe,
@@ -110,7 +111,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
     };
     provide_context(ctx);
 
-    let push_toast = use_toast();
+    let logging = use_toast();
 
     let pattern_name =
         move || params.with(|p| p.as_ref().unwrap().name.clone().unwrap_or_default());
@@ -202,7 +203,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
             universe.with(|u| {
                 let rle = rle::from_iter(u.iter_alive_in_rect(x1, y1, x2, y2), x1, y1, x2, y2);
                 copy(&rle);
-                push_toast.run("Copied RLE to clipboard!".to_owned());
+                logging.log("Copied RLE to clipboard!");
             });
         }
     };

@@ -1,6 +1,32 @@
 @import url("https://fonts.googleapis.com/css2?family=Roboto+Mono:ital,wght@0,100..700;1,100..700&display=swap");
 @import "tailwindcss";
 
+@theme {
+  --font-mono: "Roboto One", monospace;
+
+  @keyframes slide-in-from-right {
+    0% {
+      opacity: 0;
+      transform: translateX(100%);
+    }
+    100% {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  --animate-slide-in-from-right: slide-in-from-right 0.3s ease-in-out forwards;
+
+  @keyframes fade-out {
+    0% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+  --animate-fade-out: fade-out 0.3s ease-in forwards;
+}
+
 @layer base {
   body {
     @apply text-white font-mono;

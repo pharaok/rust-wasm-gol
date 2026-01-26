@@ -1,8 +1,8 @@
 use crate::{
     app::{GolContext, use_fit_universe},
     components::{
-        Button, ButtonVariant, Dialog, FileInput, Icon, Link, LinkVariant, Popover,
-        PopoverPlacement, PopoverTrigger, Surface, TextArea,
+        Button, ButtonVariant, Dialog, FileInput, Icon, IconSize, Link, LinkVariant, Popover,
+        PopoverPlacement, PopoverTrigger, Surface, TextArea, use_toast,
     },
     parse::rle,
     universe::InsertMode,
@@ -38,6 +38,7 @@ pub fn download_text_file(filename: &str, content: &str) {
 #[component]
 pub fn ImportForm(#[prop(into)] close: Callback<()>) -> impl IntoView {
     let GolContext { universe, .. } = use_context::<GolContext>().unwrap();
+    let logging = use_toast();
     let (rle, set_rle) = signal(String::new());
     let on_file_change = move |file: File| {
         spawn_local(async move {
@@ -48,10 +49,11 @@ pub fn ImportForm(#[prop(into)] close: Callback<()>) -> impl IntoView {
                     let content = text.as_string().unwrap_or_default();
                     set_rle.set(content);
                 }
-                Err(err) => todo!("toast"),
+                Err(err) => logging.error(&err.as_string().unwrap_or_default()),
             }
         });
     };
+    let (error_text, set_error_text) = signal("".to_owned());
 
     view! {
         <form on:submit=move |ev| {
@@ -65,7 +67,7 @@ pub fn ImportForm(#[prop(into)] close: Callback<()>) -> impl IntoView {
                 use_fit_universe();
                 close.run(());
             } else {
-                todo!("toast");
+                set_error_text.set("Invalid format".to_owned());
             }
         }>
             <div class="flex flex-col gap-2">
@@ -82,6 +84,22 @@ pub fn ImportForm(#[prop(into)] close: Callback<()>) -> impl IntoView {
                         prop:value=move || rle.get()
                     />
                     <FileInput on_change=on_file_change />
+                    {move || {
+                        if !error_text.get().is_empty() {
+                            view! {
+                                <div class="text-red-400 flex items-center gap-2">
+                                    // looks better with this pixel
+                                    <div class="mb-px">
+                                        <Icon icon=icondata::LuCircleAlert size=IconSize::Small />
+                                    </div>
+                                    <span class="text-sm">{move || error_text.get()}</span>
+                                </div>
+                            }
+                                .into_any()
+                        } else {
+                            ().into_any()
+                        }
+                    }}
                 </div>
                 <div class="w-full flex justify-end">
                     <Button variant=ButtonVariant::Primary attr:r#type="submit" class="rounded-md">
@@ -99,7 +117,7 @@ pub fn MenuButton(
     #[prop(into, optional)] on_press: Option<Callback<()>>,
 ) -> impl IntoView {
     view! {
-        // HACK:
+        // HACK: passing empty Callback instead of None
         <Button
             class="w-full flex items-center gap-2 px-2"
             on_press=on_press.unwrap_or(Callback::from(|| {}))

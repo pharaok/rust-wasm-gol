@@ -51,7 +51,23 @@ pub fn Divider() -> impl IntoView {
     view! { <div class="border-l border-neutral-700 self-stretch my-2"></div> }
 }
 
+#[derive(Clone, Copy)]
+pub enum IconSize {
+    Small,
+    Regular,
+}
 #[component]
-pub fn Icon(icon: icondata::Icon) -> impl IntoView {
-    view! { <leptos_icons::Icon icon=icon attr:class="w-6 h-6"></leptos_icons::Icon> }
+pub fn Icon(
+    icon: icondata::Icon,
+    #[prop(optional, default=IconSize::Regular)] size: IconSize,
+) -> impl IntoView {
+    view! {
+        <leptos_icons::Icon
+            icon=icon
+            attr:class=match size {
+                IconSize::Small => "size-4",
+                IconSize::Regular => "size-6",
+            }
+        ></leptos_icons::Icon>
+    }
 }

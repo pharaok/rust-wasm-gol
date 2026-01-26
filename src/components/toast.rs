@@ -1,17 +1,33 @@
 use leptos::{logging, portal::Portal, prelude::*};
 
-use crate::components::Surface;
+use crate::components::{Icon, Surface};
+
+#[derive(Clone, Copy, Debug)]
+pub enum LogLevel {
+    Info,
+    Error,
+}
 
 #[derive(Clone, Debug)]
 struct Toast {
     pub id: usize,
     pub message: String,
+    pub level: LogLevel,
     is_closing: RwSignal<bool, LocalStorage>,
 }
 
-#[derive(Clone)]
+type PushToastType = Callback<(String, LogLevel)>;
+#[derive(Clone, Copy)]
 pub struct ToastContext {
-    pub push_toast: Callback<String>,
+    pub push_toast: PushToastType,
+}
+impl ToastContext {
+    pub fn log(&self, msg: &str) {
+        self.push_toast.run((msg.to_owned(), LogLevel::Info));
+    }
+    pub fn error(&self, msg: &str) {
+        self.push_toast.run((msg.to_owned(), LogLevel::Error));
+    }
 }
 
 #[component]
@@ -19,12 +35,13 @@ pub fn ToastRegion(children: Children) -> impl IntoView {
     let (toasts, set_toasts) = signal_local::<Vec<Toast>>(Vec::new());
     let id = StoredValue::new_local(0);
 
-    let push_toast = Callback::new(move |message: String| {
+    let push_toast = Callback::new(move |(message, level): (String, LogLevel)| {
         let curr_id = id.get_value();
         set_toasts.update(|ts| {
             ts.push(Toast {
                 id: curr_id,
-                message: message.to_owned(),
+                message,
+                level,
                 is_closing: RwSignal::new_local(false),
             });
         });
@@ -54,7 +71,7 @@ pub fn ToastRegion(children: Children) -> impl IntoView {
     view! {
         {children()}
         <Portal mount=document().body().unwrap()>
-            <div class="fixed bottom-8 right-4 flex flex-col-reverse gap-2">
+            <div class="z-100 fixed bottom-8 right-4 flex flex-col-reverse gap-2">
                 <For
                     each=toasts
                     key=|t| t.id
@@ -67,23 +84,43 @@ pub fn ToastRegion(children: Children) -> impl IntoView {
     }
 }
 
-pub fn use_toast() -> Callback<String> {
-    use_context::<ToastContext>().unwrap().push_toast
+pub fn use_toast() -> ToastContext {
+    use_context::<ToastContext>().unwrap()
 }
 
 #[component]
 fn Toast(toast: Toast) -> impl IntoView {
-    logging::log!("info: {}", toast.message);
+    match toast.level {
+        LogLevel::Info => {
+            logging::log!("info: {}", toast.message)
+        }
+        LogLevel::Error => {
+            logging::error!("error: {}", toast.message)
+        }
+    };
     view! {
         <Surface class=move || {
             format!(
-                "px-4 py-2 {}",
+                "p-2 flex gap-2 items-center {} {}",
                 if toast.is_closing.get() {
                     "animate-fade-out"
                 } else {
                     "animate-slide-in-from-right"
                 },
+                match toast.level {
+                    LogLevel::Info => "",
+                    LogLevel::Error => "text-red-400",
+                },
             )
-        }>{toast.message}</Surface>
+        }>
+            {match toast.level {
+                LogLevel::Info => {
+                    view! { <Icon icon=icondata::LuInfo /> }
+                }
+                LogLevel::Error => {
+                    view! { <Icon icon=icondata::LuCircleAlert /> }
+                }
+            }} <span>{toast.message}</span>
+        </Surface>
     }
 }

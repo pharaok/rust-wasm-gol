@@ -16,7 +16,7 @@ pub fn SelectionMenu() -> impl IntoView {
     } = use_context::<GolContext>().unwrap();
 
     let UseClipboardReturn { copy, .. } = use_clipboard();
-    let push_toast = use_toast();
+    let logging = use_toast();
     view! {
         <Surface class="pointer-events-auto flex overflow-hidden">
             <Button
@@ -70,7 +70,7 @@ pub fn SelectionMenu() -> impl IntoView {
                                     y2,
                                 );
                                 copy(&rle);
-                                push_toast.run("Copied RLE to clipboard!".to_owned());
+                                logging.log("Copied RLE to clipboard!");
                             });
                     }
                 }
