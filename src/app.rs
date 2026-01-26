@@ -269,7 +269,7 @@ pub fn App(#[prop(optional, into)] meta: bool) -> impl IntoView {
     });
 
     view! {
-        <div class="absolute top-0 left-0 w-full h-[100dvh] overflow-hidden">
+        <div class="absolute top-0 left-0 w-full h-dvh overflow-hidden">
             <div
                 tabindex="0"
                 node_ref=div_ref

@@ -39,6 +39,7 @@
               leptosfmt
               trunk
               twiggy
+              tailwindcss_4
             ];
           };
       }

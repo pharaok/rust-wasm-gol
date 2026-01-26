@@ -1,6 +1,7 @@
 use crate::app::{GolContext, use_fit_universe};
-use leptos::prelude::*;
+use leptos::{html, prelude::*};
 use leptos_use::{UseTimeoutFnReturn, use_timeout_fn};
+use tailwind_fuse::tw_merge;
 
 #[component]
 fn Divider() -> impl IntoView {
@@ -10,17 +11,19 @@ fn Divider() -> impl IntoView {
 #[component]
 fn Item(
     children: Children,
+    #[prop(into, optional)] class: TextProp,
     #[prop(into, optional)] on_press: Option<Callback<()>>,
 ) -> impl IntoView {
     view! {
-        <span
-            class=format!(
-                "px-4 py-1 {}",
+        <div
+            class=tw_merge!(
+                "px-4 pb-1 {}",
                 if on_press.is_some() {
                     "cursor-pointer hover:bg-white/10 pointer-events-auto"
                 } else {
                     ""
                 },
+                class.get().to_string()
             )
 
             on:click=move |_| {
@@ -31,7 +34,7 @@ fn Item(
         >
 
             {children()}
-        </span>
+        </div>
     }
 }
 
@@ -81,6 +84,12 @@ pub fn Status() -> impl IntoView {
         },
         300.0,
     );
+    let input_ref = NodeRef::<html::Input>::new();
+    Effect::new(move |_| {
+        if let Some(el) = input_ref.get() {
+            let _ = el.focus();
+        }
+    });
 
     view! {
         <div class="flex flex-wrap justify-between items-center text-sm">
@@ -99,11 +108,18 @@ pub fn Status() -> impl IntoView {
                     if is_renaming.get() {
                         view! {
                             <input
-                                class="bg-transparent text-white px-4 py-1"
+                                node_ref=input_ref
+                                class="bg-transparent text-white px-4 pb-1 w-64"
                                 on:input=move |e| {
                                     name.set(event_target_value(&e));
                                 }
                                 on:blur=move |_| {
+                                    name.update(|name| {
+                                        *name = name.trim().to_owned();
+                                        if name.is_empty() {
+                                            *name = "Unnamed Pattern".to_owned();
+                                        }
+                                    });
                                     set_is_renaming.set(false);
                                 }
                                 prop:value=name.get()

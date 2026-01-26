@@ -33,7 +33,7 @@ pub fn SidebarTrigger(children: Children) -> impl IntoView {
     view! {
         <Surface class="absolute top-16 left-0 -translate-x-full [writing-mode:sideways-lr] rounded-r-none">
             <Button
-                class="px-1 rounded-l-md"
+                class="px-2 py-1 rounded-l-md"
                 on_press=move || {
                     set_open.update(|b| *b = !*b);
                 }
